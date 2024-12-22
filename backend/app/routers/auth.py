@@ -11,14 +11,29 @@ import os
 import json
 from authlib.integrations.starlette_client import OAuth
 from dotenv import load_dotenv
-
+import logging
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
 )
+
+def validate_env_variables():
+    required_vars = [
+        "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
+        "MAIL_PORT", "MAIL_SERVER", "SECRET_KEY",
+        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"
+    ]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+validate_env_variables()
+
 
 
 # Email configuration
@@ -46,8 +61,7 @@ oauth = OAuth()
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:8000/auth/google/callback")
-
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 
 oauth.register(
     name="google",
@@ -60,17 +74,7 @@ oauth.register(
 )
 
 
-def validate_env_variables():
-    required_vars = [
-        "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
-        "MAIL_PORT", "MAIL_SERVER", "SECRET_KEY",
-        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"
-    ]
-    for var in required_vars:
-        if not os.getenv(var):
-            raise RuntimeError(f"Environment variable {var} is missing!")
 
-validate_env_variables()
 
 # Google Login
 @router.get("/google/login")
