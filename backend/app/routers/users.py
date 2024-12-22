@@ -12,7 +12,7 @@ router = APIRouter(
     tags=["Users"]
 )
 
-# Endpoint to create a user
+# Create a user
 @router.post("/", response_model=UserResponse)
 async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Check if the email already exists
@@ -34,7 +34,7 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     await db.refresh(new_user)
     return new_user
 
-# Endpoint to get user details
+# Get user details
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.user_id == user_id))
@@ -43,7 +43,7 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-# Endpoint to update user details
+# Update user details
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(user_id: int, user: UserCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.user_id == user_id))
@@ -58,7 +58,7 @@ async def update_user(user_id: int, user: UserCreate, db: AsyncSession = Depends
     await db.refresh(existing_user)
     return existing_user
 
-# Endpoint to delete a user
+# Delete a user
 @router.delete("/{user_id}", status_code=204)
 async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.user_id == user_id))

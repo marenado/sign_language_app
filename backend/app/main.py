@@ -1,9 +1,14 @@
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
+import os
 from app.routers import users, auth
 
 app = FastAPI()
 
-# Include routers
+# Add SessionMiddleware to enable session handling
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "ya_ebu"))
+
+# Routers
 app.include_router(users.router)
 app.include_router(auth.router)
 

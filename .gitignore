@@ -11,3 +11,18 @@ __pycache__/
 # Ignore system files
 .DS_Store
 Thumbs.db
+
+# Node.js dependencies
+node_modules/
+
+# Build files from frontend (if generated)
+build/
+dist/
+
+# Logs
+*.log
+
+# IDE-specific files
+.idea/
+.vscode/
+*.swp
