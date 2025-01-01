@@ -12,3 +12,5 @@ class Progress(Base):
     score = Column(Integer, nullable=False)
     completed_at = Column(TIMESTAMP)
     lives_remaining = Column(Integer, nullable=False)
+    time_spent = Column(Integer, nullable=True)
+    attempts = Column(Integer, default=1)

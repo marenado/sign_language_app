@@ -4,42 +4,48 @@ import axios from "axios";
 import styled from "styled-components";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import SignUp from "./components/SignUp";
+import Dashboard from "./components/Dashboard"
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-  const navigate = useNavigate(); // Move inside the component
+  const navigate = useNavigate(); 
 
   // Function to handle form submission
   const handleLogin = async (e) => {
     e.preventDefault();
-
+  
     try {
       const response = await axios.post("http://127.0.0.1:8000/auth/login", {
         email,
         password,
       });
-
+  
       const { access_token } = response.data;
-      localStorage.setItem("token", access_token);
-
+      localStorage.setItem("authToken", access_token); 
+  
       setMessage("Login successful! Redirecting...");
       console.log("Token:", access_token);
-      setTimeout(() => navigate("/"), 2000);
+  
+      setTimeout(() => navigate("/dashboard"), 1000); 
     } catch (error) {
       setMessage("Invalid email or password. Please try again.");
       console.error("Error:", error.response?.data?.detail || error.message);
     }
   };
+  
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = (e) => {
+    e.preventDefault(); 
     window.location.href = "http://127.0.0.1:8000/auth/google/login";
   };
-
-  const handleFacebookSignIn = () => {
+  
+  const handleFacebookSignIn = (e) => {
+    e.preventDefault(); 
     window.location.href = "http://127.0.0.1:8000/auth/facebook/login";
   };
+  
 
   return (
     <Container>
@@ -100,6 +106,7 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </Router>
   );
@@ -107,10 +114,7 @@ const App = () => {
 
 export default App;
 
-/* Styled Components remain unchanged */
 
-
-/* Styled Components */
 const Container = styled.div`
   display: flex;
   height: 100vh;

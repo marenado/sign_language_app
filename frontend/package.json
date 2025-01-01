@@ -3,13 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/material": "^6.3.0",
     "axios": "^1.7.9",
+    "chart.js": "^4.4.7",
     "cra-template": "1.2.0",
     "mdb-react-ui-kit": "^9.0.0",
     "react": "^18.2.0",
+    "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.28.0",
-    "react-scripts": "^3.0.1",
+    "react-scripts": "^5.0.1",
     "styled-components": "^6.1.13",
     "web-vitals": "^4.2.4"
   },
@@ -36,5 +41,12 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-nullish-coalescing-operator": "^7.18.6",
+    "@babel/plugin-proposal-optional-chaining": "^7.21.0",
+    "@babel/preset-env": "^7.26.0"
   }
+
+  
 }

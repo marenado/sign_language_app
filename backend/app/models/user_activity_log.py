@@ -9,4 +9,6 @@ class UserActivityLog(Base):
     action = Column(String(50), nullable=False)
     timestamp = Column(TIMESTAMP, nullable=False)
     user_id = Column(Integer, ForeignKey("user.user_id"), nullable=False)
+    duration = Column(Integer, nullable=True)
+    activity_type = Column(String(20), nullable=True)
 
