@@ -1,9 +1,17 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Line } from "react-chartjs-2";
-import { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
+import {
+  Chart,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
 import { Avatar, Box, Card, CardContent, Typography } from "@mui/material";
-
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -120,7 +128,7 @@ const Dashboard = () => {
         display: "flex",
         height: "100vh",
         backgroundColor: "#f7f7f7",
-        overflow: "hidden", 
+        overflow: "hidden",
       }}
     >
       {/* Sidebar */}
@@ -143,8 +151,7 @@ const Dashboard = () => {
               fontWeight: "bold",
               marginBottom: "20px",
             }}
-          >
-          </Typography>
+          ></Typography>
           <nav>
             <Typography
               sx={{
@@ -169,80 +176,116 @@ const Dashboard = () => {
       </Box>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, padding: "40px", overflowY: "scroll" }}>
+      <Box
+        sx={{
+          flex: 1,
+          padding: "40px",
+          overflowY: "scroll",
+        }}
+      >
         {/* Profile Card */}
-        <Card
+        <Box
           sx={{
-            position: "relative",
-            textAlign: "center",
-            backgroundColor: "#f4f4ff",
-            borderRadius: "10px",
-            padding: "20px 10px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-            marginBottom: "40px", 
-            maxWidth: "400px",
-           /* margin: "0 auto",*/
-            height: "210px",
+            display: "flex",
+            justifyContent: "center",
+            marginTop: "40px",
+            marginBottom: "40px",
           }}
         >
-          <Avatar
-            sx={{
-              width: "80px",
-              height: "80px",
-              position: "absolute",
-              top: "10px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              border: "4px solid #f4f4ff",
-            }}
-            src="https://via.placeholder.com/120"
-            alt="User Avatar"
-          />
+       <Card
+  sx={{
+    position: "relative",
+    textAlign: "center",
+    backgroundColor: "#f4f4ff",
+    borderRadius: "20px", 
+    padding: "20px",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+    maxWidth: "400px",
+    width: "100%",
+    margin: "0 auto", 
+    paddingTop: "60px", 
+    overflow: "visible", 
+  }}
+>
+  {/* Avatar */}
+  <Avatar
+    sx={{
+      width: "100px", 
+      height: "100px",
+      position: "absolute",
+      top: "-50px", 
+      left: "50%",
+      transform: "translateX(-50%)", 
+      border: "5px solid #f4f4ff", 
+      backgroundColor: "#fff",
+      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)", 
+    }}
+    src="https://via.placeholder.com/100" 
+    alt="User Avatar"
+  />
 
-          <Box sx={{ marginTop: "80px" }}>
-            <Typography variant="h5" sx={{ fontWeight: "bold", color: "#333" }}>
-              {dashboardData.username || "User"}
-            </Typography>
-            <Typography variant="body1" sx={{ color: "#666", marginBottom: "20px" }}>
-              {dashboardData.email || "user@example.com"}
-            </Typography>
+  {/* Profile Content */}
+  <Box sx={{ marginTop: "20px" }}>
+    <Typography variant="h5" sx={{ fontWeight: "bold", color: "#333" }}>
+      {dashboardData.username || "User"}
+    </Typography>
+    <Typography variant="body1" sx={{ color: "#666", marginBottom: "20px" }}>
+      {dashboardData.email || "user@example.com"}
+    </Typography>
 
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-around",
-                alignItems: "center",
-                borderTop: "1px solid #e0e0e0",
-                paddingTop: "20px",
-                marginTop: "20px",
-              }}
-            >
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333" }}>
-                  Lessons
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6" }}>
-                  {dashboardData.lessons_completed || 0}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333" }}>
-                  Points
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6" }}>
-                  {dashboardData.points || 0}
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-        </Card>
+    {/* Divider and Stats */}
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        borderTop: "1px solid #e0e0e0",
+        paddingTop: "20px",
+        marginTop: "20px",
+      }}
+    >
+      <Box sx={{ flex: 1, textAlign: "center" }}>
+        <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333", marginBottom: "8px", }}>
+          Lessons
+        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6", display: "block", }}>
+          {dashboardData.lessons_completed || 0}
+        </Typography>
+      </Box>
+      <Box
+        sx={{
+          width: "1px",
+          height: "40px",
+          backgroundColor: "#e0e0e0",
+        }}
+      ></Box>
+      <Box sx={{ flex: 1, textAlign: "center" }}>
+        <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333", marginBottom: "8px", }}>
+          Points
+        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6" }}>
+          {dashboardData.points || 0}
+        </Typography>
+      </Box>
+    </Box>
+  </Box>
+</Card>
+
+        </Box>
 
         {/* Chart */}
-        <Card sx={{ borderRadius: "20px", padding: "20px" }}>
-          <CardContent>
-            <Line data={chartData} options={chartOptions} />
-          </CardContent>
-        </Card>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <Card sx={{ borderRadius: "20px", padding: "20px", maxWidth: "800px", width: "100%" }}>
+            <CardContent>
+              <Line data={chartData} options={chartOptions} />
+            </CardContent>
+          </Card>
+        </Box>
       </Box>
     </Box>
   );
