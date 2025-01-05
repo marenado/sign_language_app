@@ -103,12 +103,18 @@ const Login = () => {
 const App = () => {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-      </Routes>
-    </Router>
+    <Routes>
+      {/* Authentication Routes */}
+      <Route path="/" element={<Login />} />
+      <Route path="/signup" element={<SignUp />} />
+
+      {/* Dashboard Routes */}
+      <Route path="/dashboard" element={<Dashboard />} />
+      {/* <Route path="/dictionary" element={<Dictionary />} /> */}
+      {/* <Route path="/modules" element={<Modules />} /> */}
+      {/* <Route path="/settings" element={<Settings />} /> */}
+    </Routes>
+  </Router>
   );
 };
 

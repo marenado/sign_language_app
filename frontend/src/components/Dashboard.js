@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import Sidebar from "./Sidebar"; // Import Sidebar
 import { Line } from "react-chartjs-2";
 import {
   Chart,
@@ -131,110 +132,7 @@ const Dashboard = () => {
         overflow: "hidden",
       }}
     >
-      {/* Sidebar */}
-      <Box
-  sx={{
-    display: "flex",
-    flexDirection: "column",
-    width: "250px",
-    backgroundColor: "#5b21b6", 
-    color: "#fff",
-    padding: "20px",
-    borderRadius: "0 20px 20px 0",
-    justifyContent: "space-between",
-  }}
->
-  {/* Navigation Section */}
-  <Box>
-    <Typography
-      variant="h5"
-      sx={{
-        fontWeight: "bold",
-        marginBottom: "40px",
-        textAlign: "center", 
-      }}
-    >
-    </Typography>
-    <nav>
-      {/* Sidebar Item */}
-      {["Dashboard", "Dictionary", "Modules"].map((item, index) => (
-        <Box
-          key={index}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            padding: "15px",
-            borderRadius: "10px",
-            marginBottom: "10px",
-            textAlign: "center",
-            backgroundColor: item === "Dashboard" ? "#E6DFFF" : "transparent", 
-            color: item === "Dashboard" ? "#4a148c" : "#fff", 
-            fontWeight: item === "Dashboard" ? "bold" : "normal",
-            transition: "background-color 0.3s ease",
-            "&:hover": {
-              backgroundColor: "#E6DFFF",
-              color: "#4a148c",
-            },
-          }}
-        >
-          {item}
-        </Box>
-      ))}
-    </nav>
-  </Box>
-
-  {/* Settings Section */}
-  <Box>
-    <Box
-      sx={{
-        width: "100%",
-        height: "1px",
-        backgroundColor: "#e0e0e0",
-        margin: "20px 0",
-      }}
-    ></Box>
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        padding: "15px",
-        borderRadius: "10px",
-        textAlign: "center",
-        color: "#fff",
-        "&:hover": {
-          backgroundColor: "#E6DFFF",
-          color: "#4a148c",
-        },
-      }}
-    >
-      Settings
-    </Box>
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        padding: "15px",
-        borderRadius: "10px",
-        textAlign: "center",
-        color: "#F87171",
-        "&:hover": {
-          backgroundColor: "#E6DFFF",
-          color: "#4a148c",
-        },
-      }}
-    >
-      Log Out
-    </Box>
-  </Box>
-</Box>
-
-      {/* Main Content */}
+      <Sidebar /> {/* Use Sidebar */}
       <Box
         sx={{
           flex: 1,
@@ -251,85 +149,81 @@ const Dashboard = () => {
             marginBottom: "40px",
           }}
         >
-       <Card
-  sx={{
-    position: "relative",
-    textAlign: "center",
-    backgroundColor: "#f4f4ff",
-    borderRadius: "20px", 
-    padding: "20px",
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-    maxWidth: "400px",
-    width: "100%",
-    margin: "0 auto", 
-    paddingTop: "60px", 
-    overflow: "visible", 
-  }}
->
-  {/* Avatar */}
-  <Avatar
-    sx={{
-      width: "100px", 
-      height: "100px",
-      position: "absolute",
-      top: "-50px", 
-      left: "50%",
-      transform: "translateX(-50%)", 
-      border: "5px solid #f4f4ff", 
-      backgroundColor: "#fff",
-      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)", 
-    }}
-    src="https://via.placeholder.com/100" 
-    alt="User Avatar"
-  />
+          <Card
+            sx={{
+              position: "relative",
+              textAlign: "center",
+              backgroundColor: "#f4f4ff",
+              borderRadius: "20px",
+              padding: "20px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+              maxWidth: "400px",
+              width: "100%",
+              margin: "0 auto",
+              paddingTop: "60px",
+              overflow: "visible",
+            }}
+          >
+            <Avatar
+              sx={{
+                width: "100px",
+                height: "100px",
+                position: "absolute",
+                top: "-50px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                border: "5px solid #f4f4ff",
+                backgroundColor: "#fff",
+                boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+              }}
+              src="https://via.placeholder.com/100"
+              alt="User Avatar"
+            />
+            <Box sx={{ marginTop: "20px" }}>
+              <Typography variant="h5" sx={{ fontWeight: "bold", color: "#333" }}>
+                {dashboardData.username || "User"}
+              </Typography>
+              <Typography variant="body1" sx={{ color: "#666", marginBottom: "20px" }}>
+                {dashboardData.email || "user@example.com"}
+              </Typography>
 
-  {/* Profile Content */}
-  <Box sx={{ marginTop: "20px" }}>
-    <Typography variant="h5" sx={{ fontWeight: "bold", color: "#333" }}>
-      {dashboardData.username || "User"}
-    </Typography>
-    <Typography variant="body1" sx={{ color: "#666", marginBottom: "20px" }}>
-      {dashboardData.email || "user@example.com"}
-    </Typography>
-
-    {/* Divider and Stats */}
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        borderTop: "1px solid #e0e0e0",
-        paddingTop: "20px",
-        marginTop: "20px",
-      }}
-    >
-      <Box sx={{ flex: 1, textAlign: "center" }}>
-        <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333", marginBottom: "8px", }}>
-          Lessons
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6", display: "block", }}>
-          {dashboardData.lessons_completed || 0}
-        </Typography>
-      </Box>
-      <Box
-        sx={{
-          width: "1px",
-          height: "40px",
-          backgroundColor: "#e0e0e0",
-        }}
-      ></Box>
-      <Box sx={{ flex: 1, textAlign: "center" }}>
-        <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333", marginBottom: "8px", }}>
-          Points
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6" }}>
-          {dashboardData.points || 0}
-        </Typography>
-      </Box>
-    </Box>
-  </Box>
-</Card>
-
+              {/* Divider and Stats */}
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderTop: "1px solid #e0e0e0",
+                  paddingTop: "20px",
+                  marginTop: "20px",
+                }}
+              >
+                <Box sx={{ flex: 1, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333" }}>
+                    Lessons
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6" }}>
+                    {dashboardData.lessons_completed || 0}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: "1px",
+                    height: "40px",
+                    backgroundColor: "#e0e0e0",
+                  }}
+                ></Box>
+                <Box sx={{ flex: 1, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ fontWeight: "bold", color: "#333" }}>
+                    Points
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: "bold", color: "#5b21b6" }}>
+                    {dashboardData.points || 0}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Card>
         </Box>
 
         {/* Chart */}

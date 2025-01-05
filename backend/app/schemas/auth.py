@@ -10,7 +10,6 @@ class TokenResponse(BaseModel):
     token_type: str
 
 
-
 class SignupRequest(BaseModel):
     username: str
     email: EmailStr
