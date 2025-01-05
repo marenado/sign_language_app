@@ -7,10 +7,21 @@ const Sidebar = () => {
   const navigate = useNavigate();
 
   const sidebarItems = [
-    { name: "Dashboard", path: "/dashboard" }, // Updated to match routing
+    { name: "Dashboard", path: "/dashboard" }, 
     { name: "Dictionary", path: "/dictionary" },
     { name: "Modules", path: "/modules" },
   ];
+
+  const handleLogout = () => {
+    
+    localStorage.removeItem("authToken");
+
+    
+    localStorage.removeItem("userData");
+
+   
+    navigate("/");
+  };
 
   return (
     <Box
@@ -40,7 +51,7 @@ const Sidebar = () => {
           {sidebarItems.map((item, index) => (
             <Box
               key={index}
-              onClick={() => navigate(item.path)} // Navigate to the correct page
+              onClick={() => navigate(item.path)} 
               sx={{
                 display: "flex",
                 alignItems: "center",
@@ -78,7 +89,7 @@ const Sidebar = () => {
         ></Box>
 
         <Box
-          onClick={() => navigate("/settings")} // Navigate to Settings
+          onClick={() => navigate("/settings")} 
           sx={{
             display: "flex",
             alignItems: "center",
@@ -101,6 +112,7 @@ const Sidebar = () => {
         </Box>
 
         <Box
+          onClick={handleLogout} 
           sx={{
             display: "flex",
             alignItems: "center",
@@ -114,10 +126,6 @@ const Sidebar = () => {
               backgroundColor: "#E6DFFF",
               color: "#4a148c",
             },
-          }}
-          onClick={() => {
-            // Add your logout logic here
-            console.log("Log Out Clicked");
           }}
         >
           Log Out
