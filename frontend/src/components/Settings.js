@@ -5,10 +5,10 @@ import Sidebar from "./Sidebar"; // Import reusable Sidebar component
 
 const Settings = () => {
   const [userData, setUserData] = useState({
-    firstName: "",
-    lastName: "",
+    username: "",
     email: "",
     password: "",
+    avatar: "",
   });
 
   const [loading, setLoading] = useState(true);
@@ -28,9 +28,9 @@ const Settings = () => {
         });
 
         setUserData({
-          firstName: response.data.firstName || "",
-          lastName: response.data.lastName || "",
+          username: response.data.username || "",
           email: response.data.email || "",
+          avatar: response.data.avatar || "",
           password: "",
         });
       } catch (err) {
@@ -43,7 +43,7 @@ const Settings = () => {
     fetchData();
   }, []);
 
-  // Handle form submission
+  // Handle form submission for updating profile
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -53,8 +53,7 @@ const Settings = () => {
       await axios.put(
         "http://127.0.0.1:8000/users/update-profile",
         {
-          firstName: userData.firstName,
-          lastName: userData.lastName,
+          username: userData.username,
           email: userData.email,
           password: userData.password,
         },
@@ -68,6 +67,36 @@ const Settings = () => {
       alert("Profile updated successfully.");
     } catch (err) {
       alert(err.response?.data?.detail || "Failed to update profile.");
+    }
+  };
+
+  // Handle avatar upload
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) throw new Error("No authentication token found.");
+
+      const response = await axios.put("http://127.0.0.1:8000/users/update-avatar", formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      setUserData((prevData) => ({
+        ...prevData,
+        avatar: response.data.avatar, // Update avatar URL
+      }));
+
+      alert("Avatar updated successfully.");
+    } catch (err) {
+      alert(err.response?.data?.detail || "Failed to update avatar.");
     }
   };
 
@@ -106,15 +135,25 @@ const Settings = () => {
             height: "120px",
             marginBottom: "20px",
           }}
-          src="https://via.placeholder.com/120"
+          src={userData.avatar || "https://via.placeholder.com/120"}
           alt="User Avatar"
         />
-        <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-          {userData.firstName} {userData.lastName}
-        </Typography>
-        <Typography variant="body2" sx={{ color: "#666", marginBottom: "40px" }}>
-          {userData.email}
-        </Typography>
+        <Button
+          variant="outlined"
+          component="label"
+          sx={{
+            marginBottom: "20px",
+            textTransform: "none",
+          }}
+        >
+          Change Avatar
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handleAvatarChange}
+          />
+        </Button>
 
         <Box
           component="form"
@@ -131,22 +170,14 @@ const Settings = () => {
           <Typography variant="h6" sx={{ marginBottom: "20px", fontWeight: "bold" }}>
             Basic Info
           </Typography>
-          <Box sx={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
-            <TextField
-              fullWidth
-              label="First Name"
-              variant="outlined"
-              value={userData.firstName}
-              onChange={(e) => setUserData({ ...userData, firstName: e.target.value })}
-            />
-            <TextField
-              fullWidth
-              label="Last Name"
-              variant="outlined"
-              value={userData.lastName}
-              onChange={(e) => setUserData({ ...userData, lastName: e.target.value })}
-            />
-          </Box>
+          <TextField
+            fullWidth
+            label="Username"
+            variant="outlined"
+            value={userData.username}
+            onChange={(e) => setUserData({ ...userData, username: e.target.value })}
+            sx={{ marginBottom: "20px" }}
+          />
           <TextField
             fullWidth
             label="Email"
