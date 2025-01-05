@@ -56,7 +56,7 @@ const Settings = () => {
           username: userData.username,
           email: userData.email,
           password: userData.password,
-          avatar: userData.avatar, // Include avatar in the payload
+          avatar: userData.avatar, 
         },
         {
           headers: {
@@ -98,7 +98,7 @@ const Settings = () => {
 
       setUserData((prevData) => ({
         ...prevData,
-        avatar: response.data.avatar, // Update avatar URL
+        avatar: response.data.avatar, 
       }));
 
       alert("Avatar updated successfully.");

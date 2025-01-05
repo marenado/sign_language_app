@@ -135,7 +135,7 @@ async def get_dashboard(
         "points": current_user.points,
         "lessons_completed": lessons_completed,
         "total_time_spent": total_time_spent,
-        "avatar": current_user.avatar,  # Include avatar in the response
+        "avatar": current_user.avatar,  
     }
 
 @router.put("/update-profile", response_model=UserResponse)
@@ -151,7 +151,7 @@ async def update_profile(
 
     user.username = user_update.username or user.username
     user.email = user_update.email or user.email
-    user.avatar = user_update.avatar or user.avatar  # Update avatar URL if provided
+    user.avatar = user_update.avatar or user.avatar  
     if user_update.password:
         user.password = hash_password(user_update.password)
 
