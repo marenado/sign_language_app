@@ -133,47 +133,106 @@ const Dashboard = () => {
     >
       {/* Sidebar */}
       <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          width: "250px",
-          backgroundColor: "#5b21b6",
-          color: "#fff",
-          padding: "20px",
-          borderRadius: "0 20px 20px 0",
-          justifyContent: "space-between",
-        }}
-      >
-        <Box>
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: "bold",
-              marginBottom: "20px",
-            }}
-          ></Typography>
-          <nav>
-            <Typography
-              sx={{
-                marginBottom: "10px",
-                cursor: "pointer",
-                fontWeight: "bold",
-                backgroundColor: "#4a148c",
-                padding: "10px",
-                borderRadius: "10px",
-              }}
-            >
-              Dashboard
-            </Typography>
-            <Typography sx={{ marginBottom: "10px", cursor: "pointer" }}>Dictionary</Typography>
-            <Typography sx={{ marginBottom: "10px", cursor: "pointer" }}>Modules</Typography>
-          </nav>
+  sx={{
+    display: "flex",
+    flexDirection: "column",
+    width: "250px",
+    backgroundColor: "#5b21b6", 
+    color: "#fff",
+    padding: "20px",
+    borderRadius: "0 20px 20px 0",
+    justifyContent: "space-between",
+  }}
+>
+  {/* Navigation Section */}
+  <Box>
+    <Typography
+      variant="h5"
+      sx={{
+        fontWeight: "bold",
+        marginBottom: "40px",
+        textAlign: "center", 
+      }}
+    >
+    </Typography>
+    <nav>
+      {/* Sidebar Item */}
+      {["Dashboard", "Dictionary", "Modules"].map((item, index) => (
+        <Box
+          key={index}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            padding: "15px",
+            borderRadius: "10px",
+            marginBottom: "10px",
+            textAlign: "center",
+            backgroundColor: item === "Dashboard" ? "#E6DFFF" : "transparent", 
+            color: item === "Dashboard" ? "#4a148c" : "#fff", 
+            fontWeight: item === "Dashboard" ? "bold" : "normal",
+            transition: "background-color 0.3s ease",
+            "&:hover": {
+              backgroundColor: "#E6DFFF",
+              color: "#4a148c",
+            },
+          }}
+        >
+          {item}
         </Box>
-        <Box>
-          <Typography sx={{ cursor: "pointer", marginBottom: "10px" }}>Settings</Typography>
-          <Typography sx={{ cursor: "pointer", color: "#f87171" }}>Log Out</Typography>
-        </Box>
-      </Box>
+      ))}
+    </nav>
+  </Box>
+
+  {/* Settings Section */}
+  <Box>
+    <Box
+      sx={{
+        width: "100%",
+        height: "1px",
+        backgroundColor: "#e0e0e0",
+        margin: "20px 0",
+      }}
+    ></Box>
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        padding: "15px",
+        borderRadius: "10px",
+        textAlign: "center",
+        color: "#fff",
+        "&:hover": {
+          backgroundColor: "#E6DFFF",
+          color: "#4a148c",
+        },
+      }}
+    >
+      Settings
+    </Box>
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        padding: "15px",
+        borderRadius: "10px",
+        textAlign: "center",
+        color: "#F87171",
+        "&:hover": {
+          backgroundColor: "#E6DFFF",
+          color: "#4a148c",
+        },
+      }}
+    >
+      Log Out
+    </Box>
+  </Box>
+</Box>
 
       {/* Main Content */}
       <Box
