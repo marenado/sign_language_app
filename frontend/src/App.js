@@ -5,6 +5,8 @@ import styled from "styled-components";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import SignUp from "./components/SignUp";
 import Dashboard from "./components/Dashboard"
+import Settings from "./components/Settings";
+
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -103,22 +105,21 @@ const Login = () => {
 const App = () => {
   return (
     <Router>
-    <Routes>
-      {/* Authentication Routes */}
-      <Route path="/" element={<Login />} />
-      <Route path="/signup" element={<SignUp />} />
+      <Routes>
+        {/* Authentication Routes */}
+        <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
 
-      {/* Dashboard Routes */}
-      <Route path="/dashboard" element={<Dashboard />} />
-      {/* <Route path="/dictionary" element={<Dictionary />} /> */}
-      {/* <Route path="/modules" element={<Modules />} /> */}
-      {/* <Route path="/settings" element={<Settings />} /> */}
-    </Routes>
-  </Router>
+        {/* Protected Routes */}
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </Router>
   );
 };
 
 export default App;
+
 
 
 const Container = styled.div`

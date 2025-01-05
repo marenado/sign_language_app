@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Avatar, Box, Button, TextField, Typography } from "@mui/material";
 import axios from "axios";
+import Sidebar from "./Sidebar"; // Import reusable Sidebar component
 
 const Settings = () => {
   const [userData, setUserData] = useState({
@@ -82,42 +83,8 @@ const Settings = () => {
         overflow: "hidden",
       }}
     >
-      {/* Sidebar */}
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          width: "250px",
-          backgroundColor: "#5b21b6",
-          color: "#fff",
-          padding: "20px",
-          borderRadius: "0 20px 20px 0",
-          justifyContent: "space-between",
-        }}
-      >
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: "bold", marginBottom: "40px", textAlign: "center" }}>
-            Menu
-          </Typography>
-          <nav>
-            <Box
-              sx={{
-                padding: "15px",
-                borderRadius: "10px",
-                backgroundColor: "#E6DFFF",
-                color: "#4a148c",
-                fontWeight: "bold",
-                marginBottom: "10px",
-                textAlign: "center",
-                cursor: "pointer",
-                "&:hover": { backgroundColor: "#D8CCF9" },
-              }}
-            >
-              Settings
-            </Box>
-          </nav>
-        </Box>
-      </Box>
+      {/* Reusable Sidebar Component */}
+      <Sidebar />
 
       {/* Main Content */}
       <Box
@@ -198,7 +165,9 @@ const Settings = () => {
             sx={{ marginBottom: "20px" }}
           />
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-            <Button variant="outlined">Cancel</Button>
+            <Button variant="outlined" onClick={() => window.location.reload()}>
+              Cancel
+            </Button>
             <Button type="submit" variant="contained" sx={{ backgroundColor: "#5b21b6", color: "#fff" }}>
               Save
             </Button>
