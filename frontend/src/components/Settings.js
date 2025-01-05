@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Avatar, Box, Button, TextField, Typography } from "@mui/material";
 import axios from "axios";
-import Sidebar from "./Sidebar"; // Import reusable Sidebar component
+import Sidebar from "./Sidebar";
 
 const Settings = () => {
   const [userData, setUserData] = useState({
@@ -50,12 +50,13 @@ const Settings = () => {
       const token = localStorage.getItem("authToken");
       if (!token) throw new Error("No authentication token found.");
 
-      await axios.put(
+      const response = await axios.put(
         "http://127.0.0.1:8000/users/update-profile",
         {
           username: userData.username,
           email: userData.email,
           password: userData.password,
+          avatar: userData.avatar, // Include avatar in the payload
         },
         {
           headers: {
@@ -66,7 +67,9 @@ const Settings = () => {
 
       alert("Profile updated successfully.");
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to update profile.");
+      const errorMessage =
+        err.response?.data?.detail || "Failed to update profile.";
+      alert(errorMessage);
     }
   };
 
@@ -82,12 +85,16 @@ const Settings = () => {
       const token = localStorage.getItem("authToken");
       if (!token) throw new Error("No authentication token found.");
 
-      const response = await axios.put("http://127.0.0.1:8000/users/update-avatar", formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await axios.put(
+        "http://127.0.0.1:8000/users/update-avatar",
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
 
       setUserData((prevData) => ({
         ...prevData,
@@ -96,7 +103,9 @@ const Settings = () => {
 
       alert("Avatar updated successfully.");
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to update avatar.");
+      const errorMessage =
+        err.response?.data?.detail || "Failed to update avatar.";
+      alert(errorMessage);
     }
   };
 

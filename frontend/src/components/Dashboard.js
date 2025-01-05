@@ -176,7 +176,7 @@ const Dashboard = () => {
                 backgroundColor: "#fff",
                 boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
               }}
-              src="https://via.placeholder.com/100"
+              src={dashboardData.avatar || "https://via.placeholder.com/100"}
               alt="User Avatar"
             />
             <Box sx={{ marginTop: "20px" }}>
