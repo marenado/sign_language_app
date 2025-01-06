@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Avatar, Box, Button, TextField, Typography } from "@mui/material";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 
 const Settings = () => {
@@ -13,6 +14,8 @@ const Settings = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const navigate = useNavigate(); 
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -65,7 +68,8 @@ const Settings = () => {
         }
       );
 
-      alert("Profile updated successfully.");
+      
+      navigate("/dashboard");
     } catch (err) {
       const errorMessage =
         err.response?.data?.detail || "Failed to update profile.";
@@ -101,7 +105,7 @@ const Settings = () => {
         avatar: response.data.avatar, 
       }));
 
-      alert("Avatar updated successfully.");
+      
     } catch (err) {
       const errorMessage =
         err.response?.data?.detail || "Failed to update avatar.";
