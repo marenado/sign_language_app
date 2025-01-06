@@ -6,13 +6,22 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.utils.auth import hash_password, verify_password, get_current_user
+from app.utils.aws_s3 import s3_client, AWS_BUCKET_NAME, AWS_REGION
 import shutil
 import os
+import boto3
+from botocore.exceptions import NoCredentialsError
+import uuid
+import logging
+
 
 router = APIRouter(
     prefix="/users",
     tags=["Users"]
 )
+
+
+logger = logging.getLogger(__name__)
 
 # Create a user
 @router.post("/", response_model=UserResponse)
@@ -76,31 +85,47 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
 async def get_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
-# Update avatar
+import boto3
+from botocore.exceptions import NoCredentialsError
+import uuid
+
 @router.put("/update-avatar", status_code=200, response_model=dict)
 async def update_avatar(
     avatar: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
+    # Validate the avatar file type
     if avatar.content_type not in ["image/jpeg", "image/png"]:
         raise HTTPException(status_code=400, detail="Only JPEG or PNG files are allowed.")
 
-    # Save the file locally
-    avatar_dir = "media/avatars"
-    os.makedirs(avatar_dir, exist_ok=True)
-    file_path = f"{avatar_dir}/{current_user.user_id}_{avatar.filename}"
+    
+    unique_filename = f"{current_user.user_id}_{uuid.uuid4().hex}_{avatar.filename}"
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(avatar.file, buffer)
+    try:
+        # Upload the file to S3 
+        s3_client.upload_fileobj(
+            avatar.file,
+            AWS_BUCKET_NAME,
+            unique_filename,
+            ExtraArgs={"ContentType": avatar.content_type}  # Set content type
+        )
 
-    # Update the user's avatar field with the file URL
-    avatar_url = f"http://127.0.0.1:8000/media/avatars/{current_user.user_id}_{avatar.filename}"
-    current_user.avatar = avatar_url
-    await db.commit()
-    await db.refresh(current_user)
+        # Generate the file URL
+        avatar_url = f"https://{AWS_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{unique_filename}"
 
-    return {"avatar": avatar_url}
+        # Update the user's avatar in the database
+        current_user.avatar = avatar_url
+        await db.commit()
+        await db.refresh(current_user)
+
+        return {"avatar": avatar_url}
+
+    except NoCredentialsError:
+        raise HTTPException(status_code=500, detail="AWS credentials not found.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading avatar: {str(e)}")
+
 
 # Dashboard data
 @router.get("/dashboard", status_code=status.HTTP_200_OK)
