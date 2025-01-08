@@ -12,7 +12,7 @@ conf = ConnectionConfig(
     USE_CREDENTIALS=True
 )
 
-# Send a verification email
+
 async def send_verification_email(email: str, token: str) -> bool:
     verification_url = f"http://127.0.0.1:3000/verify-email?token={token}"
     html_content = f"""

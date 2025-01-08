@@ -282,7 +282,7 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
                 status_code=404, detail="User not found or token is invalid."
             )
 
-        # Update the email and clear `temp_email`
+        
         user.email = user.temp_email
         user.temp_email = None
         await db.commit()
