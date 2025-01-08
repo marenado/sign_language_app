@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from pydantic import BaseModel
 from typing import Optional
 
@@ -21,7 +21,7 @@ class Config:
 
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
-    avatar: Optional[str] 
+    username: Optional[str] = Field(None, description="Updated username")
+    email: Optional[EmailStr] = Field(None, description="Updated email")
+    password: Optional[str] = Field(None, description="Updated password")
+    avatar: Optional[str] = Field(None, description="Updated avatar URL")

@@ -5,13 +5,17 @@ from sqlalchemy.sql import text
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.utils.auth import verify_email_verification_token
+from app.utils.auth import create_access_token, create_email_verification_token
 from app.utils.auth import hash_password, verify_password, get_current_user
 from app.utils.aws_s3 import s3_client, AWS_BUCKET_NAME, AWS_REGION
+from app.utils.email import send_verification_email
 import shutil
 import os
 import boto3
 from botocore.exceptions import NoCredentialsError
 import uuid
+import re
 import logging
 
 
@@ -163,24 +167,129 @@ async def get_dashboard(
         "avatar": current_user.avatar,  
     }
 
+# @router.put("/update-profile", response_model=UserResponse)
+# async def update_profile(
+#     user_update: UserUpdate,
+#     db: AsyncSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     result = await db.execute(select(User).where(User.user_id == current_user.user_id))
+#     user = result.scalar()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+
+#     user.username = user_update.username or user.username
+#     user.email = user_update.email or user.email
+#     user.avatar = user_update.avatar or user.avatar  
+#     if user_update.password:
+#         user.password = hash_password(user_update.password)
+
+#     await db.commit()
+#     await db.refresh(user)
+#     return user
+
+MIN_USERNAME_LENGTH = 3
+MIN_PASSWORD_LENGTH = 8
+EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+PASSWORD_SPECIAL_CHARS = "!@#$%^&*()-_+="
+
 @router.put("/update-profile", response_model=UserResponse)
 async def update_profile(
     user_update: UserUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Fetch the current user
     result = await db.execute(select(User).where(User.user_id == current_user.user_id))
     user = result.scalar()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user.username = user_update.username or user.username
-    user.email = user_update.email or user.email
-    user.avatar = user_update.avatar or user.avatar  
+    # Validate and check for unique username
+    if user_update.username:
+        if len(user_update.username) < MIN_USERNAME_LENGTH:
+            raise HTTPException(status_code=400, detail="Username must be at least 3 characters long.")
+
+        existing_username = await db.execute(
+            select(User).where(User.username == user_update.username, User.user_id != user.user_id)
+        )
+        if existing_username.scalar():
+            raise HTTPException(status_code=400, detail="Username is already taken.")
+        user.username = user_update.username
+
+    # Handle email changes
+    if user_update.email and user_update.email != user.email:
+        # Validate email format
+        if not re.match(EMAIL_REGEX, user_update.email):
+            raise HTTPException(status_code=400, detail="Invalid email address.")
+
+        # Check if the email is already registered
+        existing_email = await db.execute(select(User).where(User.email == user_update.email))
+        if existing_email.scalar():
+            raise HTTPException(status_code=400, detail="Email is already registered.")
+
+        # Generate a verification token
+        verification_token = create_email_verification_token(user_update.email)
+
+        # Send verification email
+        try:
+            await send_verification_email(user_update.email, verification_token)
+        except Exception as e:
+            logging.error(f"Failed to send verification email: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to send verification email.")
+
+        # Temporarily store the new email in `temp_email`
+        user.temp_email = user_update.email
+
+    # Handle password updates
     if user_update.password:
+        if len(user_update.password) < MIN_PASSWORD_LENGTH:
+            raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+        if not any(char.isdigit() for char in user_update.password):
+            raise HTTPException(status_code=400, detail="Password must contain at least one number.")
+        if not any(char.isupper() for char in user_update.password):
+            raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter.")
+        if not any(char.islower() for char in user_update.password):
+            raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter.")
+        if not any(char in PASSWORD_SPECIAL_CHARS for char in user_update.password):
+            raise HTTPException(status_code=400, detail="Password must contain at least one special character.")
+        
         user.password = hash_password(user_update.password)
 
+    # Commit changes to the database
     await db.commit()
     await db.refresh(user)
+
     return user
 
+
+@router.get("/verify-email")
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    """
+    Verifies the email using the provided token.
+    If valid, updates the user's email and clears the temp_email field.
+    """
+    try:
+        # Decode and validate the token
+        email = verify_email_verification_token(token)
+
+        # Fetch the user with matching `temp_email`
+        result = await db.execute(select(User).where(User.temp_email == email))
+        user = result.scalar()
+
+        if not user:
+            raise HTTPException(
+                status_code=404, detail="User not found or token is invalid."
+            )
+
+        # Update the email and clear `temp_email`
+        user.email = user.temp_email
+        user.temp_email = None
+        await db.commit()
+
+        return {"message": "Email verified successfully."}
+    except Exception as e:
+        logging.error(f"Email verification failed: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail="Email verification failed. Please try again."
+        )

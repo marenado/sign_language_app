@@ -54,3 +54,22 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         raise HTTPException(status_code=404, detail="User not found.")
 
     return user
+
+
+
+# Generate an email verification token
+def create_email_verification_token(email: str) -> str:
+    expire = datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
+    to_encode = {"sub": email, "exp": expire}
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# Verify the email verification token
+def verify_email_verification_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=400, detail="Invalid token.")
+        return email
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or expired token.")
