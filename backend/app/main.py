@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware  
 from fastapi.staticfiles import StaticFiles  
+from app.routers import admin
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -28,6 +29,7 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "ya
 # Routers
 app.include_router(users.router)
 app.include_router(auth.router)
+app.include_router(admin.router)
 
 # Static file serving for media
 media_directory = "media"
