@@ -11,6 +11,7 @@ class User(Base):
     email = Column(String(254), unique=True, nullable=False)
     password = Column(String(128), nullable=False)
     is_admin = Column(Boolean, default=False)
+    is_super_admin = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     temp_email = Column(String(254), unique=True, nullable=True)  
     points = Column(Integer, default=0)

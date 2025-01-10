@@ -10,6 +10,11 @@ from app.utils.auth import create_access_token, create_email_verification_token
 from app.utils.auth import hash_password, verify_password, get_current_user
 from app.utils.aws_s3 import s3_client, AWS_BUCKET_NAME, AWS_REGION
 from app.utils.email import send_verification_email
+from app.models.module import Module
+from app.models.lesson import Lesson
+from app.schemas.module import ModuleCreate, ModuleResponse
+from app.schemas.lesson import LessonCreate, LessonResponse
+from app.utils.auth import require_admin
 import shutil
 import os
 import boto3
@@ -138,8 +143,26 @@ async def get_dashboard(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Returns the user's dashboard information including points, lessons completed, avatar, and other stats.
+    Returns dashboard information:
+    - For regular users: points, lessons completed, total time spent, avatar.
+    - For admin users: modules created and lessons created.
     """
+    if current_user.is_admin:
+        # Admin-specific dashboard logic
+        modules_created_query = await db.execute(select(Module).where(Module.created_by == current_user.user_id))
+        lessons_created_query = await db.execute(select(Lesson).join(Module).where(Module.created_by == current_user.user_id))
+
+        modules_created = modules_created_query.scalars().all()
+        lessons_created = lessons_created_query.scalars().all()
+
+        return {
+            "dashboard_type": "admin",
+            "modules_created": len(modules_created),
+            "lessons_created": len(lessons_created),
+            "message": f"Welcome to the admin dashboard, {current_user.username}!"
+        }
+
+    # Regular user dashboard logic (preserved)
     lessons_completed_query = text("""
         SELECT COUNT(*) FROM lesson 
         WHERE EXISTS (
@@ -164,29 +187,10 @@ async def get_dashboard(
         "points": current_user.points,
         "lessons_completed": lessons_completed,
         "total_time_spent": total_time_spent,
-        "avatar": current_user.avatar,  
+        "avatar": current_user.avatar,
     }
 
-# @router.put("/update-profile", response_model=UserResponse)
-# async def update_profile(
-#     user_update: UserUpdate,
-#     db: AsyncSession = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ):
-#     result = await db.execute(select(User).where(User.user_id == current_user.user_id))
-#     user = result.scalar()
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
 
-#     user.username = user_update.username or user.username
-#     user.email = user_update.email or user.email
-#     user.avatar = user_update.avatar or user.avatar  
-#     if user_update.password:
-#         user.password = hash_password(user_update.password)
-
-#     await db.commit()
-#     await db.refresh(user)
-#     return user
 
 MIN_USERNAME_LENGTH = 3
 MIN_PASSWORD_LENGTH = 8
@@ -293,3 +297,50 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(
             status_code=400, detail="Email verification failed. Please try again."
         )
+
+
+
+# Create a module (Admin only)
+@router.post("/modules", response_model=ModuleResponse)
+async def create_module(
+    module: ModuleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin)
+):
+    new_module = Module(
+        title=module.title,
+        description=module.description,
+        version=module.version,
+        prerequisite_mod=module.prerequisite_mod,
+        created_by=current_admin.user_id
+    )
+    db.add(new_module)
+    await db.commit()
+    await db.refresh(new_module)
+    return new_module
+
+# Create a lesson (Admin only)
+@router.post("/lessons", response_model=LessonResponse)
+async def create_lesson(
+    lesson: LessonCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin)
+):
+    # Check if the module exists
+    result = await db.execute(select(Module).where(Module.module_id == lesson.module_id))
+    module = result.scalar()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    new_lesson = Lesson(
+        title=lesson.title,
+        description=lesson.description,
+        version=lesson.version,
+        duration=lesson.duration,
+        difficulty=lesson.difficulty,
+        module_id=lesson.module_id
+    )
+    db.add(new_lesson)
+    await db.commit()
+    await db.refresh(new_lesson)
+    return new_lesson

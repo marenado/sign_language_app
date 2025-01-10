@@ -73,3 +73,10 @@ def verify_email_verification_token(token: str) -> str:
         return email
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or expired token.")
+    
+
+async def require_admin(current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required.")
+    return current_user
+
