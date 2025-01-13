@@ -1,17 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import styled from "styled-components";
-
-const Sidebar = () => {
-  return (
-    <SidebarContainer>
-      <SidebarItem>Dictionary</SidebarItem>
-      <SidebarItem>Modules</SidebarItem>
-      <SidebarItem>Settings</SidebarItem>
-      <SidebarItem style={{ color: "red", cursor: "pointer" }}>Log Out</SidebarItem>
-    </SidebarContainer>
-  );
-};
+import Sidebar from "./Sidebar";
+import { Box, Button, Typography, TextField, Select, MenuItem } from "@mui/material";
 
 const ModuleManagement = () => {
   const [modules, setModules] = useState([]);
@@ -65,114 +55,121 @@ const ModuleManagement = () => {
   }, []);
 
   return (
-    <PageContainer>
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* Sidebar */}
       <Sidebar />
-      <MainContent>
-        <Header>
-          <h1>Module Management</h1>
-          <AddModuleButton>Add Module +</AddModuleButton>
-        </Header>
-        <Content>
-          <ModuleList>
+
+      {/* Main Content */}
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: "auto", // Enable scrolling for the main content
+          padding: "20px",
+          backgroundColor: "#f5f5f5",
+        }}
+      >
+        <Typography variant="h4" sx={{ fontWeight: "bold", marginBottom: "20px" }}>
+          Module Management
+        </Typography>
+
+        {/* Module Creation Form */}
+        <Box
+          component="form"
+          onSubmit={createModule}
+          sx={{
+            backgroundColor: "#fff",
+            padding: "20px",
+            borderRadius: "10px",
+            boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+            marginBottom: "20px",
+          }}
+        >
+          <Typography variant="h6" sx={{ marginBottom: "20px" }}>
+            Create a New Module
+          </Typography>
+          <TextField
+            fullWidth
+            label="Title"
+            value={moduleData.title}
+            onChange={(e) => setModuleData({ ...moduleData, title: e.target.value })}
+            required
+            sx={{ marginBottom: "20px" }}
+          />
+          <TextField
+            fullWidth
+            label="Description"
+            value={moduleData.description}
+            onChange={(e) => setModuleData({ ...moduleData, description: e.target.value })}
+            required
+            multiline
+            rows={4}
+            sx={{ marginBottom: "20px" }}
+          />
+          <TextField
+            fullWidth
+            label="Version"
+            type="number"
+            value={moduleData.version}
+            onChange={(e) => setModuleData({ ...moduleData, version: Number(e.target.value) })}
+            required
+            sx={{ marginBottom: "20px" }}
+          />
+          <Select
+            fullWidth
+            value={moduleData.prerequisite_mod || ""}
+            onChange={(e) =>
+              setModuleData({ ...moduleData, prerequisite_mod: e.target.value || null })
+            }
+            displayEmpty
+            sx={{ marginBottom: "20px" }}
+          >
+            <MenuItem value="">
+              <em>No Prerequisite</em>
+            </MenuItem>
             {modules.map((module) => (
-              <ModuleCard key={module.module_id}>
-                <h3>{module.title}</h3>
-                <p>{module.description}</p>
-                <p>Version: {module.version}</p>
-                <DeleteButton onClick={() => deleteModule(module.module_id)}>Delete</DeleteButton>
-              </ModuleCard>
+              <MenuItem key={module.module_id} value={module.module_id}>
+                {module.title}
+              </MenuItem>
             ))}
-          </ModuleList>
-        </Content>
-      </MainContent>
-    </PageContainer>
+          </Select>
+          <Button variant="contained" color="primary" type="submit">
+            Create Module
+          </Button>
+        </Box>
+
+        {/* Module List */}
+        <Box>
+          <Typography variant="h6" sx={{ marginBottom: "20px" }}>
+            Existing Modules
+          </Typography>
+          {modules.map((module) => (
+            <Box
+              key={module.module_id}
+              sx={{
+                backgroundColor: "#fff",
+                padding: "20px",
+                borderRadius: "10px",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                marginBottom: "20px",
+              }}
+            >
+              <Typography variant="h6">{module.title}</Typography>
+              <Typography>{module.description}</Typography>
+              <Typography>Version: {module.version}</Typography>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => deleteModule(module.module_id)}
+                sx={{ marginTop: "10px" }}
+              >
+                Delete
+              </Button>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    </Box>
   );
 };
 
 export default ModuleManagement;
-
-const PageContainer = styled.div`
-  display: flex;
-  height: 100vh;
-  background-color: #f9f9f9;
-`;
-
-const SidebarContainer = styled.div`
-  width: 250px;
-  background-color: #6a1b9a;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-`;
-
-const SidebarItem = styled.div`
-  margin: 20px 0;
-  cursor: pointer;
-  &:hover {
-    text-decoration: underline;
-  }
-`;
-
-const MainContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-`;
-
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #ddd;
-`;
-
-const AddModuleButton = styled.button`
-  padding: 10px 20px;
-  background-color: #6a1b9a;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-
-  &:hover {
-    background-color: #4a148c;
-  }
-`;
-
-const Content = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  background-color: #ffffff;
-`;
-
-const ModuleList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-`;
-
-const ModuleCard = styled.div`
-  background-color: #e3f2fd;
-  border-radius: 5px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  width: 250px;
-`;
-
-const DeleteButton = styled.button`
-  padding: 10px;
-  background-color: #e57373;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-
-  &:hover {
-    background-color: #c62828;
-  }
-`;

@@ -6,20 +6,20 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Check if the user is an admin from localStorage
+  const isAdmin = localStorage.getItem("isAdmin") === "true";
+
+  // Dynamically filter sidebar items based on the user's role
   const sidebarItems = [
-    { name: "Dashboard", path: "/dashboard" }, 
+    { name: "Dashboard", path: "/dashboard" }, // Include Dashboard only for non-admin users
     { name: "Dictionary", path: "/dictionary" },
-    { name: "Modules", path: "/modules" },
-  ];
+    { name: "Modules", path: isAdmin ? "/admin/modules" : "/modules" }, // Different path for admin modules
+  ].filter((item) => !(isAdmin && item.name === "Dashboard")); // Remove Dashboard if user is admin
 
   const handleLogout = () => {
-    
     localStorage.removeItem("authToken");
-
-    
     localStorage.removeItem("userData");
-
-   
+    localStorage.removeItem("isAdmin");
     navigate("/");
   };
 
@@ -46,12 +46,13 @@ const Sidebar = () => {
             textAlign: "center",
           }}
         >
+        
         </Typography>
         <nav>
           {sidebarItems.map((item, index) => (
             <Box
               key={index}
-              onClick={() => navigate(item.path)} 
+              onClick={() => navigate(item.path)}
               sx={{
                 display: "flex",
                 alignItems: "center",
@@ -89,7 +90,7 @@ const Sidebar = () => {
         ></Box>
 
         <Box
-          onClick={() => navigate("/settings")} 
+          onClick={() => navigate("/settings")}
           sx={{
             display: "flex",
             alignItems: "center",
@@ -112,7 +113,7 @@ const Sidebar = () => {
         </Box>
 
         <Box
-          onClick={handleLogout} 
+          onClick={handleLogout}
           sx={{
             display: "flex",
             alignItems: "center",
