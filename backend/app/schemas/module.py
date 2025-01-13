@@ -1,16 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
-class ModuleBase(BaseModel):
-    title: str
-    description: Optional[str]
-    version: int
-    prerequisite_mod: Optional[int]
+class ModuleCreate(BaseModel):
+    title: Optional[str] = Field(None, max_length=50)
+    description: Optional[str] = Field(None, max_length=2000)
+    version: Optional[int] = Field(None, ge=1)
+    prerequisite_mod: Optional[int] = None
 
-class ModuleCreate(ModuleBase):
+class ModuleCreate(BaseModel):
     pass
 
-class ModuleResponse(ModuleBase):
+class ModuleResponse(BaseModel):
     module_id: int
     created_by: int
 

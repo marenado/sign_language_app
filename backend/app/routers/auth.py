@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request, Query
+from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
@@ -8,7 +8,6 @@ from sqlalchemy.future import select
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
 import os
-import json
 from authlib.integrations.starlette_client import OAuth
 from dotenv import load_dotenv
 import logging
@@ -22,6 +21,7 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
+# Environment variable validation
 def validate_env_variables():
     required_vars = [
         "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
@@ -34,54 +34,39 @@ def validate_env_variables():
 
 validate_env_variables()
 
-
-
-# Email configuration
+# Email Configuration
 conf = ConnectionConfig(
     MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
     MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
     MAIL_FROM=os.getenv("MAIL_FROM"),
-    MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),  # Default to 587 if not specified
+    MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),
     MAIL_SERVER=os.getenv("MAIL_SERVER"),
     MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "SignLearn"),
-    MAIL_STARTTLS=True if os.getenv("MAIL_STARTTLS", "True") == "True" else False,
-    MAIL_SSL_TLS=True if os.getenv("MAIL_SSL_TLS", "False") == "True" else False,
+    MAIL_STARTTLS=os.getenv("MAIL_STARTTLS", "True").lower() == "true",
+    MAIL_SSL_TLS=os.getenv("MAIL_SSL_TLS", "False").lower() == "true",
     USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
+    VALIDATE_CERTS=True,
 )
 
-serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY"))
-
-#serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY", "secret_key"))
+serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY", "default_secret_key"))
 
 # OAuth Configuration
 oauth = OAuth()
-
-
-# Google OAuth Configuration
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
-
 oauth.register(
     name="google",
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
     authorize_url="https://accounts.google.com/o/oauth2/auth",
     access_token_url="https://accounts.google.com/o/oauth2/token",
-    redirect_uri=GOOGLE_REDIRECT_URI,
+    redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
     client_kwargs={"scope": "openid email profile"},
 )
-
-
-
 
 # Google Login
 @router.get("/google/login")
 async def google_login(request: Request):
-    return await oauth.google.authorize_redirect(request, GOOGLE_REDIRECT_URI)
+    return await oauth.google.authorize_redirect(request, os.getenv("GOOGLE_REDIRECT_URI"))
 
-# OAuth Callback
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     token = await oauth.google.authorize_access_token(request)
@@ -95,25 +80,19 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if not user:
-        user = User(email=email, username=name, password="", is_verified=True)  # Mark verified for OAuth
+        user = User(email=email, username=name, password="", is_verified=True)
         db.add(user)
         await db.commit()
 
-    token = create_access_token({"sub": email})
+    token = create_access_token({"sub": email, "is_admin": user.is_admin})
     return {"access_token": token, "token_type": "bearer"}
 
-# User registration
+# User Registration
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == user_data.email))
-    existing_user = result.scalar_one_or_none()
-    if existing_user:
+    if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already exists")
-
-    result = await db.execute(select(User).where(User.username == user_data.username))
-    existing_username = result.scalar_one_or_none()
-    if existing_username:
-        raise HTTPException(status_code=400, detail="Username already exists")
 
     hashed_password = hash_password(user_data.password)
     new_user = User(username=user_data.username, email=user_data.email, password=hashed_password, is_verified=False)
@@ -134,7 +113,7 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
 
     return {"message": "Account created! Please verify your email."}
 
-# Email verification
+# Email Verification
 @router.get("/verify-email")
 async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     try:
@@ -152,19 +131,16 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
 
     return {"message": "Email verified successfully"}
 
-# Login endpoint
+# Login
 @router.post("/login", response_model=TokenResponse)
 async def login_user(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == credentials.email))
     user = result.scalar()
-    if not user:
+    if not user or not verify_password(credentials.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
 
-    if not verify_password(credentials.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    token = create_access_token({"sub": user.email})
+    token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
     return {"access_token": token, "token_type": "bearer"}

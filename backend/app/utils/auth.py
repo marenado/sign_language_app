@@ -30,6 +30,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # Create a JWT access token
 def create_access_token(data: dict) -> str:
+    """
+    Create a JWT token with custom claims for user roles.
+    """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
@@ -37,6 +40,9 @@ def create_access_token(data: dict) -> str:
 
 # Get the current authenticated user
 async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> User:
+    """
+    Decodes the token and fetches the current user from the database.
+    """
     try:
         # Decode the token
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -55,16 +61,38 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 
     return user
 
+# Require admin privileges
+async def require_admin(current_user: User = Depends(get_current_user)):
+    """
+    Ensures the current user has admin privileges.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required.")
+    return current_user
 
+# Require super admin privileges
+async def require_super_admin(current_user: User = Depends(get_current_user)):
+    """
+    Ensures the current user has super-admin privileges.
+    """
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin privileges required.")
+    return current_user
 
 # Generate an email verification token
 def create_email_verification_token(email: str) -> str:
+    """
+    Generates a JWT token for email verification.
+    """
     expire = datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
     to_encode = {"sub": email, "exp": expire}
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # Verify the email verification token
 def verify_email_verification_token(token: str) -> str:
+    """
+    Decodes and verifies the email verification token.
+    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
@@ -73,10 +101,3 @@ def verify_email_verification_token(token: str) -> str:
         return email
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or expired token.")
-    
-
-async def require_admin(current_user: User = Depends(get_current_user)):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin privileges required.")
-    return current_user
-

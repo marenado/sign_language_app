@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import TypedText from "./components/TypedText";
 import axios from "axios";
 import styled from "styled-components";
@@ -6,6 +6,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-route
 import SignUp from "./components/SignUp";
 import Dashboard from "./components/Dashboard"
 import Settings from "./components/Settings";
+import ModuleManagement  from "./components/ModuleManagement";
 
 
 const Login = () => {
@@ -17,26 +18,36 @@ const Login = () => {
   // Function to handle form submission
   const handleLogin = async (e) => {
     e.preventDefault();
-  
+
     try {
       const response = await axios.post("http://127.0.0.1:8000/auth/login", {
         email,
         password,
       });
-  
+
       const { access_token } = response.data;
-      localStorage.setItem("authToken", access_token); 
-  
+
+      // Decode JWT to extract user role
+      const decodedToken = JSON.parse(atob(access_token.split(".")[1])); // Decode JWT payload
+      const isAdmin = decodedToken.is_admin;
+
+      localStorage.setItem("authToken", access_token); // Store token
+      localStorage.setItem("isAdmin", isAdmin); // Store admin flag
+
       setMessage("Login successful! Redirecting...");
       console.log("Token:", access_token);
-  
-      setTimeout(() => navigate("/dashboard"), 1000); 
+
+      // Redirect based on role
+      if (isAdmin) {
+        navigate("/admin/modules");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (error) {
       setMessage("Invalid email or password. Please try again.");
       console.error("Error:", error.response?.data?.detail || error.message);
     }
   };
-  
 
   const handleGoogleSignIn = (e) => {
     e.preventDefault(); 
@@ -103,16 +114,48 @@ const Login = () => {
 };
 
 const App = () => {
+  const [isAdmin, setIsAdmin] = useState(null);
+
+  // Check user role on app load
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    const adminFlag = localStorage.getItem("isAdmin") === "true";
+    setIsAdmin(adminFlag);
+  }, []);
+
+  if (isAdmin === null) {
+    // Wait for role determination
+    return <div>Loading...</div>;
+  }
+
   return (
     <Router>
       <Routes>
-        {/* Authentication Routes */}
+        {/* Public Routes */}
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
 
-        {/* Protected Routes */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/settings" element={<Settings />} />
+        {/* Admin Route */}
+        <Route
+          path="/admin/modules"
+          element={
+            isAdmin ? <ModuleManagement /> : <div>Access Denied</div>
+          }
+        />
+
+        {/* User Routes */}
+        <Route
+          path="/dashboard"
+          element={
+            isAdmin ? <div>Access Denied</div> : <Dashboard />
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            isAdmin ? <div>Access Denied</div> : <Settings />
+          }
+        />
       </Routes>
     </Router>
   );

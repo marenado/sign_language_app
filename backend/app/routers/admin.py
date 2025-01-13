@@ -173,3 +173,37 @@ async def register_admin(
     await db.refresh(new_admin)
 
     return new_admin
+
+
+@router.put("/modules/{module_id}", response_model=ModuleResponse)
+async def update_module(
+    module_id: int,
+    updated_data: ModuleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Updates an existing module. Only the admin who created the module can modify it.
+    """
+    # Fetch the module
+    result = await db.execute(select(Module).where(Module.module_id == module_id))
+    module = result.scalar()
+
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found.")
+
+    # Ensure the module belongs to the current admin
+    if module.created_by != current_admin.user_id:
+        raise HTTPException(status_code=403, detail="You are not authorized to update this module.")
+
+    # Update the module's fields
+    module.title = updated_data.title or module.title
+    module.description = updated_data.description or module.description
+    module.version = updated_data.version or module.version
+    module.prerequisite_mod = updated_data.prerequisite_mod or module.prerequisite_mod
+
+    # Commit the changes
+    await db.commit()
+    await db.refresh(module)
+
+    return module
