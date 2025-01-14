@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "./Sidebar";
-import { Box, Button, Typography, TextField, Select, MenuItem, Card } from "@mui/material";
+import { Box, Button, Typography, TextField, Select, MenuItem, Card, IconButton } from "@mui/material";
+import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
 
-
-const BASE_URL = "http://localhost:8000"; 
+const BASE_URL = "http://localhost:8000";
 
 const ModuleManagement = () => {
   const [modules, setModules] = useState([]);
@@ -27,13 +28,12 @@ const ModuleManagement = () => {
       console.error("Error fetching modules:", error);
     }
   };
-  
 
   // Handle module creation
   const createModule = async (e) => {
     e.preventDefault();
     console.log("Creating module with data:", moduleData); // Debugging
-  
+
     try {
       await axios.post(`${BASE_URL}/admin/modules`, moduleData, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
@@ -45,27 +45,6 @@ const ModuleManagement = () => {
       console.error("Error creating module:", error.response?.data || error.message);
     }
   };
-  
-  
-  {modules.length > 0 ? (
-    modules.map((module) => (
-      <Card key={module.module_id} sx={{ padding: "20px", marginBottom: "20px" }}>
-        <Typography variant="h6">{module.title}</Typography>
-        <Typography>{module.description}</Typography>
-        <Button
-          variant="outlined"
-          color="error"
-          onClick={() => deleteModule(module.module_id)}
-          sx={{ marginTop: "10px" }}
-        >
-          Delete
-        </Button>
-      </Card>
-    ))
-  ) : (
-    <Typography>No modules found.</Typography>
-  )}
-  
 
   // Handle module deletion
   const deleteModule = async (moduleId) => {
@@ -78,7 +57,6 @@ const ModuleManagement = () => {
       console.error("Error deleting module:", error.response?.data || error.message);
     }
   };
-
 
   useEffect(() => {
     fetchModules();
@@ -168,22 +146,40 @@ const ModuleManagement = () => {
             <Card
               key={module.module_id}
               sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
                 padding: "20px",
                 borderRadius: "10px",
                 boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
                 marginBottom: "20px",
               }}
             >
-              <Typography variant="h6">{module.title}</Typography>
-              <Typography>{module.description}</Typography>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => deleteModule(module.module_id)}
-                sx={{ marginTop: "10px" }}
-              >
-                Delete
-              </Button>
+              <Box>
+                <Typography variant="h6">{module.title}</Typography>
+                <Typography>{module.description}</Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <IconButton
+                  color="primary"
+                  onClick={() => console.log("Add Lesson Clicked", module.module_id)}
+                >
+                  <AddIcon />
+                </IconButton>
+                <IconButton
+                  color="secondary"
+                  onClick={() => console.log("Edit Module Clicked", module.module_id)}
+                >
+                  <EditIcon />
+                </IconButton>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={() => deleteModule(module.module_id)}
+                >
+                  Delete
+                </Button>
+              </Box>
             </Card>
           ))}
         </Box>
