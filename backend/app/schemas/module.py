@@ -7,12 +7,14 @@ class ModuleCreate(BaseModel):
     version: Optional[int] = Field(None, ge=1)
     prerequisite_mod: Optional[int] = None
 
-class ModuleCreate(BaseModel):
-    pass
 
 class ModuleResponse(BaseModel):
     module_id: int
-    created_by: int
+    title: str
+    description: str
+    version: int
+    prerequisite_mod: Optional[int]
+
 
     class Config:
         orm_mode = True

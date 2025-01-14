@@ -1,54 +1,84 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "./Sidebar";
-import { Box, Button, Typography, TextField, Select, MenuItem } from "@mui/material";
+import { Box, Button, Typography, TextField, Select, MenuItem, Card } from "@mui/material";
+
+
+const BASE_URL = "http://localhost:8000"; 
 
 const ModuleManagement = () => {
   const [modules, setModules] = useState([]);
   const [moduleData, setModuleData] = useState({
     title: "",
     description: "",
-    version: 1,
     prerequisite_mod: null,
+    version: 1,
   });
 
   // Fetch all modules
   const fetchModules = async () => {
     try {
-      const res = await axios.get("/admin/modules", {
+      const res = await axios.get(`${BASE_URL}/admin/modules`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
+      console.log("Fetched modules:", res.data);
       setModules(res.data);
     } catch (error) {
       console.error("Error fetching modules:", error);
     }
   };
+  
 
   // Handle module creation
   const createModule = async (e) => {
     e.preventDefault();
+    console.log("Creating module with data:", moduleData); // Debugging
+  
     try {
-      await axios.post("/admin/modules", moduleData, {
+      await axios.post(`${BASE_URL}/admin/modules`, moduleData, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
-      fetchModules(); // Refresh modules after creation
-      setModuleData({ title: "", description: "", version: 1, prerequisite_mod: null }); // Reset form
+      console.log("Module created successfully");
+      fetchModules(); // Refresh the list
+      setModuleData({ title: "", description: "", prerequisite_mod: null, version: 1 });
     } catch (error) {
-      console.error("Error creating module:", error);
+      console.error("Error creating module:", error.response?.data || error.message);
     }
   };
+  
+  
+  {modules.length > 0 ? (
+    modules.map((module) => (
+      <Card key={module.module_id} sx={{ padding: "20px", marginBottom: "20px" }}>
+        <Typography variant="h6">{module.title}</Typography>
+        <Typography>{module.description}</Typography>
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={() => deleteModule(module.module_id)}
+          sx={{ marginTop: "10px" }}
+        >
+          Delete
+        </Button>
+      </Card>
+    ))
+  ) : (
+    <Typography>No modules found.</Typography>
+  )}
+  
 
   // Handle module deletion
   const deleteModule = async (moduleId) => {
     try {
-      await axios.delete(`/admin/modules/${moduleId}`, {
+      await axios.delete(`${BASE_URL}/admin/modules/${moduleId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
-      fetchModules(); // Refresh modules after deletion
+      fetchModules();
     } catch (error) {
-      console.error("Error deleting module:", error);
+      console.error("Error deleting module:", error.response?.data || error.message);
     }
   };
+
 
   useEffect(() => {
     fetchModules();
@@ -57,13 +87,13 @@ const ModuleManagement = () => {
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* Sidebar */}
-      <Sidebar />
+      <Sidebar userType="admin" />
 
       {/* Main Content */}
       <Box
         sx={{
           flex: 1,
-          overflowY: "auto", // Enable scrolling for the main content
+          overflowY: "auto",
           padding: "20px",
           backgroundColor: "#f5f5f5",
         }}
@@ -73,18 +103,19 @@ const ModuleManagement = () => {
         </Typography>
 
         {/* Module Creation Form */}
-        <Box
+        <Card
           component="form"
           onSubmit={createModule}
           sx={{
-            backgroundColor: "#fff",
+            maxWidth: "400px",
+            margin: "0 auto",
             padding: "20px",
             borderRadius: "10px",
-            boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-            marginBottom: "20px",
+            boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+            marginBottom: "30px",
           }}
         >
-          <Typography variant="h6" sx={{ marginBottom: "20px" }}>
+          <Typography variant="h6" sx={{ marginBottom: "20px", textAlign: "center" }}>
             Create a New Module
           </Typography>
           <TextField
@@ -93,7 +124,7 @@ const ModuleManagement = () => {
             value={moduleData.title}
             onChange={(e) => setModuleData({ ...moduleData, title: e.target.value })}
             required
-            sx={{ marginBottom: "20px" }}
+            sx={{ marginBottom: "15px" }}
           />
           <TextField
             fullWidth
@@ -102,17 +133,8 @@ const ModuleManagement = () => {
             onChange={(e) => setModuleData({ ...moduleData, description: e.target.value })}
             required
             multiline
-            rows={4}
-            sx={{ marginBottom: "20px" }}
-          />
-          <TextField
-            fullWidth
-            label="Version"
-            type="number"
-            value={moduleData.version}
-            onChange={(e) => setModuleData({ ...moduleData, version: Number(e.target.value) })}
-            required
-            sx={{ marginBottom: "20px" }}
+            rows={3}
+            sx={{ marginBottom: "15px" }}
           />
           <Select
             fullWidth
@@ -121,7 +143,7 @@ const ModuleManagement = () => {
               setModuleData({ ...moduleData, prerequisite_mod: e.target.value || null })
             }
             displayEmpty
-            sx={{ marginBottom: "20px" }}
+            sx={{ marginBottom: "15px" }}
           >
             <MenuItem value="">
               <em>No Prerequisite</em>
@@ -132,10 +154,10 @@ const ModuleManagement = () => {
               </MenuItem>
             ))}
           </Select>
-          <Button variant="contained" color="primary" type="submit">
+          <Button variant="contained" color="primary" type="submit" fullWidth>
             Create Module
           </Button>
-        </Box>
+        </Card>
 
         {/* Module List */}
         <Box>
@@ -143,10 +165,9 @@ const ModuleManagement = () => {
             Existing Modules
           </Typography>
           {modules.map((module) => (
-            <Box
+            <Card
               key={module.module_id}
               sx={{
-                backgroundColor: "#fff",
                 padding: "20px",
                 borderRadius: "10px",
                 boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
@@ -155,7 +176,6 @@ const ModuleManagement = () => {
             >
               <Typography variant="h6">{module.title}</Typography>
               <Typography>{module.description}</Typography>
-              <Typography>Version: {module.version}</Typography>
               <Button
                 variant="outlined"
                 color="error"
@@ -164,7 +184,7 @@ const ModuleManagement = () => {
               >
                 Delete
               </Button>
-            </Box>
+            </Card>
           ))}
         </Box>
       </Box>

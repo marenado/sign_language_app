@@ -1,178 +1,111 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.utils.auth import require_admin
-from app.database import get_db
-from app.models.user import User
-from app.models.module import Module
-from app.models.lesson import Lesson
-from app.schemas.module import ModuleCreate, ModuleResponse
-from app.schemas.lesson import LessonCreate, LessonResponse
-from fastapi import APIRouter, HTTPException, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from app.database import get_db
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from sqlalchemy.sql import text
+from app.utils.auth import require_admin, get_current_user
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
-from app.utils.auth import verify_email_verification_token
-from app.utils.auth import create_access_token, create_email_verification_token
-from app.utils.auth import hash_password, verify_password, get_current_user
-from app.utils.aws_s3 import s3_client, AWS_BUCKET_NAME, AWS_REGION
-from app.utils.email import send_verification_email
 from app.models.module import Module
-from app.models.lesson import Lesson
 from app.schemas.module import ModuleCreate, ModuleResponse
-from app.schemas.lesson import LessonCreate, LessonResponse
-from app.utils.auth import require_admin
-import shutil
-import os
-import boto3
-from botocore.exceptions import NoCredentialsError
-import uuid
-import re
+from typing import List
 import logging
-from sqlalchemy.sql import text
-from app.models.module import Module
-from app.models.lesson import Lesson
-from app.utils.auth import require_admin
 
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"]
 )
 
-@router.post("/modules/", response_model=ModuleResponse)
+# Fetch menu options based on user role
+@router.get("/menu-options")
+async def get_menu_options(current_user: User = Depends(get_current_user)):
+    """
+    Return menu options based on the user's role.
+    Admins won't see the "Dashboard" tab.
+    """
+    if current_user.is_admin:
+        return {"menu": ["Dictionary", "Modules", "Settings"]}
+    else:
+        return {"menu": ["Dashboard", "Dictionary", "Modules", "Settings"]}
+
+
+@router.post("/modules", response_model=ModuleResponse)
 async def create_module(
     module: ModuleCreate,
     current_admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    new_module = Module(
-        title=module.title,
-        description=module.description,
-        version=module.version,
-        prerequisite_mod=module.prerequisite_mod,
-        created_by=current_admin.user_id
-    )
-    db.add(new_module)
-    await db.commit()
-    await db.refresh(new_module)
-    return new_module
+    """
+    Create a new module
+    """
+    logging.info(f"Creating module with data: {module.dict()}")
+    try:
+        new_module = Module(
+            title=module.title,
+            description=module.description,
+            version=module.version,
+            prerequisite_mod=module.prerequisite_mod,
+            created_by=current_admin.user_id
+        )
+        db.add(new_module)
+        await db.commit()
+        await db.refresh(new_module)
+        return new_module
+    except Exception as e:
+        logging.error(f"Error creating module: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create module")
 
 
+@router.get("/modules", response_model=List[ModuleResponse])
+async def get_modules(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin)
+):
+    """
+    Fetch all modules created by the current admin
+    """
+    try:
+        result = await db.execute(select(Module).where(Module.created_by == current_admin.user_id))
+        modules = result.scalars().all()
+        logging.info(f"Modules fetched: {modules}")
+        return modules
+    except Exception as e:
+        logging.error(f"Error fetching modules: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch modules")
 
-@router.delete("/modules/{module_id}", status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete("/modules/{module_id}", status_code=204)
 async def delete_module(
     module_id: int,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    # Fetch the module
-    result = await db.execute(select(Module).where(Module.module_id == module_id))
-    module = result.scalar()
+    """
+    Delete a module by ID
+    """
+    try:
+        result = await db.execute(select(Module).where(Module.module_id == module_id))
+        module = result.scalar()
 
-    if not module:
-        raise HTTPException(status_code=404, detail="Module not found.")
+        if not module:
+            raise HTTPException(status_code=404, detail="Module not found.")
 
-    # Ensure the module belongs to the current admin
-    if module.created_by != current_admin.user_id:
-        raise HTTPException(status_code=403, detail="You are not authorized to delete this module.")
+        if module.created_by != current_admin.user_id:
+            raise HTTPException(status_code=403, detail="You are not authorized to delete this module.")
 
-    # Delete related lessons first (foreign key constraint)
-    await db.execute(
-        text("DELETE FROM lesson WHERE module_id = :module_id").bindparams(module_id=module_id)
-    )
+        # Delete related lessons
+        await db.execute(
+            text("DELETE FROM lesson WHERE module_id = :module_id").bindparams(module_id=module_id)
+        )
 
-    # Delete the module
-    await db.delete(module)
-    await db.commit()
+        # Delete the module
+        await db.delete(module)
+        await db.commit()
 
-    return {"message": "Module deleted successfully."}
-
-
-# Create a module (Admin only)
-@router.post("/modules", response_model=ModuleResponse)
-async def create_module(
-    module: ModuleCreate,
-    db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin)
-):
-    new_module = Module(
-        title=module.title,
-        description=module.description,
-        version=module.version,
-        prerequisite_mod=module.prerequisite_mod,
-        created_by=current_admin.user_id
-    )
-    db.add(new_module)
-    await db.commit()
-    await db.refresh(new_module)
-    return new_module
-
-# Create a lesson (Admin only)
-@router.post("/lessons", response_model=LessonResponse)
-async def create_lesson(
-    lesson: LessonCreate,
-    db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin)
-):
-    # Check if the module exists
-    result = await db.execute(select(Module).where(Module.module_id == lesson.module_id))
-    module = result.scalar()
-    if not module:
-        raise HTTPException(status_code=404, detail="Module not found")
-
-    new_lesson = Lesson(
-        title=lesson.title,
-        description=lesson.description,
-        version=lesson.version,
-        duration=lesson.duration,
-        difficulty=lesson.difficulty,
-        module_id=lesson.module_id
-    )
-    db.add(new_lesson)
-    await db.commit()
-    await db.refresh(new_lesson)
-    return new_lesson
-
-
-@router.post("/register-admin", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_admin(
-    user: UserCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    # Check if the current user is a super-admin
-    if not current_user.is_super_admin:
-        raise HTTPException(status_code=403, detail="Only super-admins can register admins.")
-
-    # Check if the email is already registered
-    result = await db.execute(select(User).where(User.email == user.email))
-    existing_user = result.scalar()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email is already registered.")
-
-    # Hash the password
-    hashed_password = hash_password(user.password)
-
-    # Create the new admin user
-    new_admin = User(
-        username=user.username,
-        email=user.email,
-        password=hashed_password,
-        is_admin=True,
-        is_verified=True  # Admins should start verified
-    )
-    db.add(new_admin)
-    await db.commit()
-    await db.refresh(new_admin)
-
-    return new_admin
+        logging.info(f"Module {module_id} deleted successfully.")
+        return {"message": "Module deleted successfully."}
+    except Exception as e:
+        logging.error(f"Error deleting module: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete module")
 
 
 @router.put("/modules/{module_id}", response_model=ModuleResponse)
@@ -183,27 +116,29 @@ async def update_module(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Updates an existing module. Only the admin who created the module can modify it.
+    Update a module by ID
     """
-    # Fetch the module
-    result = await db.execute(select(Module).where(Module.module_id == module_id))
-    module = result.scalar()
+    try:
+        result = await db.execute(select(Module).where(Module.module_id == module_id))
+        module = result.scalar()
 
-    if not module:
-        raise HTTPException(status_code=404, detail="Module not found.")
+        if not module:
+            raise HTTPException(status_code=404, detail="Module not found.")
 
-    # Ensure the module belongs to the current admin
-    if module.created_by != current_admin.user_id:
-        raise HTTPException(status_code=403, detail="You are not authorized to update this module.")
+        if module.created_by != current_admin.user_id:
+            raise HTTPException(status_code=403, detail="You are not authorized to update this module.")
 
-    # Update the module's fields
-    module.title = updated_data.title or module.title
-    module.description = updated_data.description or module.description
-    module.version = updated_data.version or module.version
-    module.prerequisite_mod = updated_data.prerequisite_mod or module.prerequisite_mod
+        # Update the module fields
+        module.title = updated_data.title or module.title
+        module.description = updated_data.description or module.description
+        module.version = updated_data.version or module.version
+        module.prerequisite_mod = updated_data.prerequisite_mod or module.prerequisite_mod
 
-    # Commit the changes
-    await db.commit()
-    await db.refresh(module)
+        await db.commit()
+        await db.refresh(module)
 
-    return module
+        logging.info(f"Module {module_id} updated successfully.")
+        return module
+    except Exception as e:
+        logging.error(f"Error updating module: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update module")
