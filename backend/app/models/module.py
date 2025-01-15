@@ -12,3 +12,4 @@ class Module(Base):
     modified_by = Column(Integer, ForeignKey("user.user_id"), nullable=True)
     version = Column(Integer, nullable=False)
     prerequisite_mod = Column(Integer, ForeignKey("module.module_id"))
+    language = Column(String(2), nullable=False) 
