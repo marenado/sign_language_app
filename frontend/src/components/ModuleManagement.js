@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "./Sidebar";
-import { Box, Button, Typography, TextField, Select, MenuItem, Card, IconButton, Modal } from "@mui/material";
+import {
+  Box,
+  Button,
+  Typography,
+  TextField,
+  Select,
+  MenuItem,
+  Card,
+  IconButton,
+  Modal,
+} from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import AddIcon from "@mui/icons-material/Add";
 
@@ -99,7 +109,7 @@ const ModuleManagement = () => {
           flex: 1,
           overflowY: "auto",
           padding: "20px",
-          backgroundColor: "#f5f5f5",
+          background: "linear-gradient(to bottom, white, #E6DFFF)",
         }}
       >
         <Typography variant="h4" sx={{ fontWeight: "bold", marginBottom: "20px" }}>
@@ -158,7 +168,17 @@ const ModuleManagement = () => {
               </MenuItem>
             ))}
           </Select>
-          <Button variant="contained" color="primary" type="submit" fullWidth>
+          <Button
+            sx={{
+              backgroundColor: "#5b21b6",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#4a148c",
+              },
+            }}
+            type="submit"
+            fullWidth
+          >
             Create Module
           </Button>
         </Card>
@@ -187,14 +207,37 @@ const ModuleManagement = () => {
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <IconButton
-                  color="secondary"
+                  sx={{
+                    backgroundColor: "#5b21b6",
+                    color: "#fff",
+                    "&:hover": {
+                      backgroundColor: "#4a148c",
+                    },
+                  }}
+                  onClick={() => console.log("Add Lesson Clicked", module.module_id)}
+                >
+                  <AddIcon />
+                </IconButton>
+                <IconButton
+                  sx={{
+                    backgroundColor: "#5b21b6",
+                    color: "#fff",
+                    "&:hover": {
+                      backgroundColor: "#4a148c",
+                    },
+                  }}
                   onClick={() => openEditModal(module)}
                 >
                   <EditIcon />
                 </IconButton>
                 <Button
-                  variant="outlined"
-                  color="error"
+                  sx={{
+                    backgroundColor: "#5b21b6",
+                    color: "#fff",
+                    "&:hover": {
+                      backgroundColor: "#4a148c",
+                    },
+                  }}
                   onClick={() => deleteModule(module.module_id)}
                 >
                   Delete
@@ -249,7 +292,17 @@ const ModuleManagement = () => {
               rows={3}
               sx={{ marginBottom: "15px" }}
             />
-            <Button variant="contained" color="primary" type="submit" fullWidth>
+            <Button
+              sx={{
+                backgroundColor: "#5b21b6",
+                color: "#fff",
+                "&:hover": {
+                  backgroundColor: "#4a148c",
+                },
+              }}
+              type="submit"
+              fullWidth
+            >
               Save Changes
             </Button>
           </Card>
