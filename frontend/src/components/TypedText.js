@@ -15,7 +15,20 @@ const TypedText = ({ text, speed }) => {
     }
   }, [index, text, speed]);
 
-  return <span>{displayedText}</span>;
+  return (
+    <div
+      style={{
+        height: "6em",
+        lineHeight: "1.5em",
+        overflow: "hidden", 
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-start", 
+      }}
+    >
+      <span style={{ whiteSpace: "pre-wrap" }}>{displayedText}</span>
+    </div>
+  );
 };
 
 export default TypedText;
