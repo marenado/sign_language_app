@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "./Sidebar";
-import { Box, Button, Typography, TextField, Select, MenuItem, Card, IconButton } from "@mui/material";
+import { Box, Button, Typography, TextField, Select, MenuItem, Card, IconButton, Modal } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import AddIcon from "@mui/icons-material/Add";
 
@@ -15,6 +15,8 @@ const ModuleManagement = () => {
     prerequisite_mod: null,
     version: 1,
   });
+  const [selectedModule, setSelectedModule] = useState(null); // Module being edited
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // State for modal visibility
 
   // Fetch all modules
   const fetchModules = async () => {
@@ -22,7 +24,6 @@ const ModuleManagement = () => {
       const res = await axios.get(`${BASE_URL}/admin/modules`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
-      console.log("Fetched modules:", res.data);
       setModules(res.data);
     } catch (error) {
       console.error("Error fetching modules:", error);
@@ -32,14 +33,11 @@ const ModuleManagement = () => {
   // Handle module creation
   const createModule = async (e) => {
     e.preventDefault();
-    console.log("Creating module with data:", moduleData); // Debugging
-
     try {
       await axios.post(`${BASE_URL}/admin/modules`, moduleData, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
-      console.log("Module created successfully");
-      fetchModules(); // Refresh the list
+      fetchModules();
       setModuleData({ title: "", description: "", prerequisite_mod: null, version: 1 });
     } catch (error) {
       console.error("Error creating module:", error.response?.data || error.message);
@@ -55,6 +53,34 @@ const ModuleManagement = () => {
       fetchModules();
     } catch (error) {
       console.error("Error deleting module:", error.response?.data || error.message);
+    }
+  };
+
+  // Open Edit Modal
+  const openEditModal = (module) => {
+    setSelectedModule(module);
+    setIsEditModalOpen(true);
+  };
+
+  // Close Edit Modal
+  const closeEditModal = () => {
+    setSelectedModule(null);
+    setIsEditModalOpen(false);
+  };
+
+  // Handle module update
+  const updateModule = async (e) => {
+    e.preventDefault();
+    if (!selectedModule) return;
+
+    try {
+      await axios.put(`${BASE_URL}/admin/modules/${selectedModule.module_id}`, selectedModule, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+      });
+      fetchModules();
+      closeEditModal();
+    } catch (error) {
+      console.error("Error updating module:", error.response?.data || error.message);
     }
   };
 
@@ -161,14 +187,8 @@ const ModuleManagement = () => {
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <IconButton
-                  color="primary"
-                  onClick={() => console.log("Add Lesson Clicked", module.module_id)}
-                >
-                  <AddIcon />
-                </IconButton>
-                <IconButton
                   color="secondary"
-                  onClick={() => console.log("Edit Module Clicked", module.module_id)}
+                  onClick={() => openEditModal(module)}
                 >
                   <EditIcon />
                 </IconButton>
@@ -183,6 +203,57 @@ const ModuleManagement = () => {
             </Card>
           ))}
         </Box>
+
+        {/* Edit Module Modal */}
+        <Modal
+          open={isEditModalOpen}
+          onClose={closeEditModal}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Card
+            component="form"
+            onSubmit={updateModule}
+            sx={{
+              maxWidth: "400px",
+              padding: "20px",
+              borderRadius: "10px",
+              boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <Typography variant="h6" sx={{ marginBottom: "20px", textAlign: "center" }}>
+              Edit Module
+            </Typography>
+            <TextField
+              fullWidth
+              label="Title"
+              value={selectedModule?.title || ""}
+              onChange={(e) =>
+                setSelectedModule({ ...selectedModule, title: e.target.value })
+              }
+              required
+              sx={{ marginBottom: "15px" }}
+            />
+            <TextField
+              fullWidth
+              label="Description"
+              value={selectedModule?.description || ""}
+              onChange={(e) =>
+                setSelectedModule({ ...selectedModule, description: e.target.value })
+              }
+              required
+              multiline
+              rows={3}
+              sx={{ marginBottom: "15px" }}
+            />
+            <Button variant="contained" color="primary" type="submit" fullWidth>
+              Save Changes
+            </Button>
+          </Card>
+        </Modal>
       </Box>
     </Box>
   );

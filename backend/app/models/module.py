@@ -9,5 +9,6 @@ class Module(Base):
     title = Column(String(50), nullable=False)
     description = Column(String(2000))
     created_by = Column(Integer, ForeignKey("user.user_id"), nullable=False)
+    modified_by = Column(Integer, ForeignKey("user.user_id"), nullable=True)
     version = Column(Integer, nullable=False)
     prerequisite_mod = Column(Integer, ForeignKey("module.module_id"))

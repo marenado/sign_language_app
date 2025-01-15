@@ -14,6 +14,7 @@ class ModuleResponse(BaseModel):
     description: str
     version: int
     prerequisite_mod: Optional[int]
+    modified_by: Optional[int] 
 
 
     class Config:

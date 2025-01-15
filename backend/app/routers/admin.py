@@ -44,7 +44,8 @@ async def create_module(
             description=module.description,
             version=module.version,
             prerequisite_mod=module.prerequisite_mod,
-            created_by=current_admin.user_id
+            created_by=current_admin.user_id,
+            modified_by=current_admin.user_id,  # Set modified_by to the creator
         )
         db.add(new_module)
         await db.commit()
@@ -53,6 +54,7 @@ async def create_module(
     except Exception as e:
         logging.error(f"Error creating module: {e}")
         raise HTTPException(status_code=500, detail="Failed to create module")
+
 
 
 @router.get("/modules", response_model=List[ModuleResponse])
@@ -116,9 +118,10 @@ async def update_module(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Update a module by ID
+    Update a module by ID and automatically increment the version
     """
     try:
+        # Fetch the module to update
         result = await db.execute(select(Module).where(Module.module_id == module_id))
         module = result.scalar()
 
@@ -128,11 +131,14 @@ async def update_module(
         if module.created_by != current_admin.user_id:
             raise HTTPException(status_code=403, detail="You are not authorized to update this module.")
 
-        # Update the module fields
+        # Update module fields
         module.title = updated_data.title or module.title
         module.description = updated_data.description or module.description
-        module.version = updated_data.version or module.version
         module.prerequisite_mod = updated_data.prerequisite_mod or module.prerequisite_mod
+        module.modified_by = current_admin.user_id  # Record who modified it
+
+        # Automatically increment the version
+        module.version += 1
 
         await db.commit()
         await db.refresh(module)
