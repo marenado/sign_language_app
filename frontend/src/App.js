@@ -67,10 +67,7 @@ const Login = () => {
         <p>Unlock the Language of Hands</p>
         <Description>
           <TypedText
-            text="SignLearn simplifies learning American Sign Language (ASL) online. Our
-            platform offers interactive lessons and practice. Start learning with
-            SignLearn today and discover the power of gestures in connecting with
-            others."
+            text="SignLearn is your gateway to mastering the world of sign languages. Uniquely offering one platform for multiple sign languages, we make learning seamless, interactive, and engaging. Dive into immersive lessons, sharpen your skills with hands-on practice, and experience the joy of connecting through the universal language of gestures. SignLearn is where your journey to communication begins!"
             speed={20}
           />
         </Description>
