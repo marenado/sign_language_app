@@ -7,47 +7,56 @@ import SignUp from "./components/SignUp";
 import Dashboard from "./components/Dashboard"
 import Settings from "./components/Settings";
 import ModuleManagement  from "./components/ModuleManagement";
+import { jwtDecode } from "jwt-decode";
 
 
-const Login = () => {
+
+const Login = ({ setIsAdmin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [authUpdated, setAuthUpdated] = useState(false);
   const navigate = useNavigate(); 
 
   // Function to handle form submission
   const handleLogin = async (e) => {
     e.preventDefault();
-
     try {
       const response = await axios.post("http://127.0.0.1:8000/auth/login", {
         email,
         password,
       });
-
       const { access_token } = response.data;
-
-      // Decode JWT to extract user role
-      const decodedToken = JSON.parse(atob(access_token.split(".")[1])); // Decode JWT payload
+      const decodedToken = jwtDecode(access_token);
       const isAdmin = decodedToken.is_admin;
-
-      localStorage.setItem("authToken", access_token); // Store token
-      localStorage.setItem("isAdmin", isAdmin); // Store admin flag
-
-      setMessage("Login successful! Redirecting...");
-      console.log("Token:", access_token);
-
-      // Redirect based on role
-      if (isAdmin) {
-        navigate("/admin/modules");
-      } else {
-        navigate("/dashboard");
-      }
+  
+      localStorage.setItem("authToken", access_token);
+      localStorage.setItem("isAdmin", isAdmin);
+  
+      setMessage("Login successful!");
+      setIsAdmin(isAdmin); 
+      window.location.href = isAdmin ? "/admin/modules" : "/dashboard";
     } catch (error) {
       setMessage("Invalid email or password. Please try again.");
       console.error("Error:", error.response?.data?.detail || error.message);
     }
   };
+  
+  
+  
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      try {
+        const decodedToken = jwtDecode(token);
+        setIsAdmin(decodedToken.is_admin);
+      } catch (error) {
+        console.error("Error decoding token:", error);
+        setIsAdmin(false);
+      }
+    }
+  }, [authUpdated]); 
+  
 
   const handleGoogleSignIn = (e) => {
     e.preventDefault(); 
@@ -111,25 +120,30 @@ const Login = () => {
 };
 
 const App = () => {
-  const [isAdmin, setIsAdmin] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(null); 
 
-  // Check user role on app load
   useEffect(() => {
     const token = localStorage.getItem("authToken");
-    const adminFlag = localStorage.getItem("isAdmin") === "true";
-    setIsAdmin(adminFlag);
+    if (token) {
+      try {
+        const decodedToken = jwtDecode(token); 
+        setIsAdmin(decodedToken.is_admin); 
+      } catch (error) {
+        console.error("Error decoding token:", error);
+        setIsAdmin(false); 
+      }
+    }
   }, []);
 
   if (isAdmin === null) {
-    // Wait for role determination
-    return <div>Loading...</div>;
+    return <div>Loading...</div>; 
   }
 
   return (
     <Router>
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
         <Route path="/signup" element={<SignUp />} />
 
         {/* Admin Route */}
@@ -157,6 +171,8 @@ const App = () => {
     </Router>
   );
 };
+
+
 
 export default App;
 

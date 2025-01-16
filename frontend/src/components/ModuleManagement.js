@@ -3,7 +3,7 @@ import axios from "axios";
 import Sidebar from "./Sidebar";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
-import { FormControl, InputLabel, NativeSelect } from "@mui/material";
+// import { FormControl, InputLabel, NativeSelect } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
   Box,
@@ -202,20 +202,20 @@ const updateModule = async (e) => {
 };
 
 // Handle module deletion
-const deleteModule = async (moduleId) => {
-  const confirmDelete = window.confirm("Are you sure you want to delete this module?");
-  if (!confirmDelete) return;
+// const deleteModule = async (moduleId) => {
+//   const confirmDelete = window.confirm("Are you sure you want to delete this module?");
+//   if (!confirmDelete) return;
 
-  try {
-    await axios.delete(`${BASE_URL}/admin/modules/${moduleId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-    });
-    fetchModules();
-    console.log(`Module ${moduleId} deleted successfully.`);
-  } catch (error) {
-    console.error("Error deleting module:", error.response?.data || error.message);
-  }
-};
+//   try {
+//     await axios.delete(`${BASE_URL}/admin/modules/${moduleId}`, {
+//       headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+//     });
+//     fetchModules();
+//     console.log(`Module ${moduleId} deleted successfully.`);
+//   } catch (error) {
+//     console.error("Error deleting module:", error.response?.data || error.message);
+//   }
+// };
 
 
 
@@ -268,9 +268,9 @@ const deleteModule = async (moduleId) => {
           background: "linear-gradient(to bottom, white, #E6DFFF)",
         }}
       >
-        <Typography variant="h4" sx={{ fontWeight: "bold", marginBottom: "20px" }}>
+        {/* <Typography variant="h4" sx={{ fontWeight: "bold", marginBottom: "20px", textAlign: "center" }}>
           Module Management
-        </Typography>
+        </Typography> */}
 
        {/* Language Selector */}
 <Box

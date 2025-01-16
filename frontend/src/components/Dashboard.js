@@ -22,19 +22,20 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      setError("No authentication token found. Please log in.");
+      setLoading(false);
+      return;
+    }
+  
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          throw new Error("No authentication token found. Please log in.");
-        }
-
         const response = await axios.get("http://127.0.0.1:8000/users/dashboard", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-
         setDashboardData(response.data);
       } catch (err) {
         console.error(err);
@@ -43,9 +44,10 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
-
+  
     fetchData();
   }, []);
+  
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;

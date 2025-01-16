@@ -77,41 +77,54 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     email = user_info["email"]
     name = user_info.get("name", email.split("@")[0])
 
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    if not user:
-        user = User(email=email, username=name, password="", is_verified=True)
-        db.add(user)
-        await db.commit()
+    try:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if not user:
+            user = User(email=email, username=name, password="", is_verified=True)
+            db.add(user)
+            await db.commit()
 
-    token = create_access_token({"sub": email, "is_admin": user.is_admin})
-    return {"access_token": token, "token_type": "bearer"}
+        token = create_access_token({"sub": email, "is_admin": user.is_admin})
+        return {"access_token": token, "token_type": "bearer"}
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"Error during Google callback: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred")
 
 # User Registration
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already exists")
+    try:
+        result = await db.execute(select(User).where(User.email == user_data.email))
+        if result.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email already exists")
 
-    hashed_password = hash_password(user_data.password)
-    new_user = User(username=user_data.username, email=user_data.email, password=hashed_password, is_verified=False)
-    db.add(new_user)
-    await db.commit()
+        hashed_password = hash_password(user_data.password)
+        new_user = User(username=user_data.username, email=user_data.email, password=hashed_password, is_verified=False)
+        db.add(new_user)
+        await db.commit()
 
-    token = serializer.dumps(user_data.email, salt="email-verification")
-    verification_link = f"http://127.0.0.1:8000/auth/verify-email?token={token}"
+        token = serializer.dumps(user_data.email, salt="email-verification")
+        verification_link = f"http://127.0.0.1:8000/auth/verify-email?token={token}"
 
-    message = MessageSchema(
-        subject="Verify your email",
-        recipients=[user_data.email],
-        body=f"Click the link to verify your email: {verification_link}",
-        subtype="html",
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
+        message = MessageSchema(
+            subject="Verify your email",
+            recipients=[user_data.email],
+            body=f"Click the link to verify your email: {verification_link}",
+            subtype="html",
+        )
+        fm = FastMail(conf)
+        await fm.send_message(message)
 
-    return {"message": "Account created! Please verify your email."}
+        return {"message": "Account created! Please verify your email."}
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"Error during user creation: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred during signup")
+    finally:
+        await db.close()
+
 
 # Email Verification
 @router.get("/verify-email")
@@ -131,16 +144,22 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
 
     return {"message": "Email verified successfully"}
 
-# Login
 @router.post("/login", response_model=TokenResponse)
 async def login_user(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == credentials.email))
-    user = result.scalar()
-    if not user or not verify_password(credentials.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    try:
+        result = await db.execute(select(User).where(User.email == credentials.email))
+        user = result.scalar()
+        if not user or not verify_password(credentials.password, user.password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
+        if not user.is_verified:
+            raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
 
-    token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
-    return {"access_token": token, "token_type": "bearer"}
+        token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
+        return {"access_token": token, "token_type": "bearer"}
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"Error during login: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred during login")
+    finally:
+        await db.close()
