@@ -27,6 +27,7 @@ const BASE_URL = "http://localhost:8000";
 
 const ModuleManagement = () => {
   const [modules, setModules] = useState([]);
+  const [lessons, setLessons] = useState({});
   const [moduleData, setModuleData] = useState({
     title: "",
     description: "",
@@ -42,6 +43,14 @@ const ModuleManagement = () => {
   const [newLanguage, setNewLanguage] = useState({ code: "", name: "" });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [moduleToDelete, setModuleToDelete] = useState(null);
+  const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
+  const [lessonData, setLessonData] = useState({
+    title: "",
+    description: "",
+    version: 1,
+    difficulty: "",
+    duration: null,
+  });
   const navigate = useNavigate();
 
 
@@ -138,7 +147,7 @@ const handleDeleteModule = async () => {
   // Fetch all modules for the selected language
   const fetchModules = useCallback(async () => {
     if (!isAuthenticated || !selectedLanguage) return;
-
+  
     try {
       const res = await axios.get(
         `${BASE_URL}/admin/modules?language_id=${selectedLanguage}`,
@@ -146,7 +155,13 @@ const handleDeleteModule = async () => {
           headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
         }
       );
-      setModules(res.data);
+      const modulesData = res.data;
+      setModules(modulesData);
+  
+      // Fetch lessons for each module
+      modulesData.forEach((module) => {
+        fetchLessons(module.module_id);
+      });
     } catch (error) {
       if (error.response?.status === 401) {
         localStorage.removeItem("authToken");
@@ -157,6 +172,17 @@ const handleDeleteModule = async () => {
       }
     }
   }, [isAuthenticated, selectedLanguage, navigate]);
+
+  const fetchLessons = async (moduleId) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/admin/lessons?module_id=${moduleId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+      });
+      setLessons((prev) => ({ ...prev, [moduleId]: res.data }));
+    } catch (error) {
+      console.error(`Error fetching lessons for module ${moduleId}:`, error.response?.data || error.message);
+    }
+  };
 
   
  // Function to map language codes to their respective flag URLs
@@ -200,23 +226,6 @@ const updateModule = async (e) => {
     console.error("Error updating module:", error.response?.data || error.message);
   }
 };
-
-// Handle module deletion
-// const deleteModule = async (moduleId) => {
-//   const confirmDelete = window.confirm("Are you sure you want to delete this module?");
-//   if (!confirmDelete) return;
-
-//   try {
-//     await axios.delete(`${BASE_URL}/admin/modules/${moduleId}`, {
-//       headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-//     });
-//     fetchModules();
-//     console.log(`Module ${moduleId} deleted successfully.`);
-//   } catch (error) {
-//     console.error("Error deleting module:", error.response?.data || error.message);
-//   }
-// };
-
 
 
   // Handle module creation
@@ -265,7 +274,7 @@ const updateModule = async (e) => {
           flex: 1,
           overflowY: "auto",
           padding: "20px",
-          background: "linear-gradient(to bottom, white, #E6DFFF)",
+          background: "linear-gradient(to bottom right, white, #E6DFFF)",
         }}
       >
         {/* <Typography variant="h4" sx={{ fontWeight: "bold", marginBottom: "20px", textAlign: "center" }}>
@@ -461,9 +470,9 @@ const updateModule = async (e) => {
 
 
 
-        {/* Module List */}
+{/* Module List */}
 <Box>
-  <Typography variant="h6" sx={{ marginBottom: "20px" }}>
+  <Typography variant="h6" sx={{ marginBottom: "20px", color: "#000000", fontWeight: "bold" }}>
     Existing Modules for{" "}
     {languages.find((lang) => lang.id === selectedLanguage)?.name || "Selected"}{" "}
     Sign Language
@@ -473,98 +482,137 @@ const updateModule = async (e) => {
       key={module.module_id}
       sx={{
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
+        flexDirection: "column",
         padding: "20px",
         borderRadius: "10px",
-        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+        boxShadow: "0 4px 8px rgba(91, 33, 182, 0.2)",
         marginBottom: "20px",
+        backgroundColor: "#f3e8ff", // Subtle violet background
       }}
     >
-      <Box>
-        <Typography variant="h6">{module.title}</Typography>
-        <Typography>{module.description}</Typography>
+      {/* Module Header */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "15px",
+        }}
+      >
+        <Box>
+          <Typography variant="h6" sx={{ color: "#000000", fontWeight: "bold" }}>
+            {module.title}
+          </Typography>
+          <Typography sx={{ color: "#6b7280" }}>{module.description}</Typography>
+        </Box>
+        <Box sx={{ display: "flex", gap: "10px" }}>
+          {/* Add Lesson Button */}
+          <Fab
+            size="small"
+            onClick={() => {
+              setSelectedModule(module);
+              setIsLessonModalOpen(true);
+            }}
+            sx={{
+              backgroundColor: "#5b21b6",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#4a148c",
+              },
+            }}
+          >
+            <AddIcon />
+          </Fab>
+
+          {/* Edit Module Button */}
+          <Fab
+            size="small"
+            onClick={() => {
+              setSelectedModule(module);
+              setIsEditModalOpen(true);
+            }}
+            sx={{
+              backgroundColor: "#5b21b6",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#4a148c",
+              },
+            }}
+          >
+            <EditIcon />
+          </Fab>
+
+          {/* Delete Module Button */}
+          <Fab
+            size="small"
+            onClick={() => openDeleteDialog(module)}
+            sx={{
+              backgroundColor: "#5b21b6",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#4a148c",
+              },
+            }}
+          >
+            <DeleteIcon />
+          </Fab>
+        </Box>
       </Box>
-      <Box sx={{ display: "flex", gap: "10px" }}>
-        {/* Add Lesson Button */}
-        <Fab
-          size="small"
-          onClick={() => console.log(`Add lesson to module ${module.module_id}`)}
-          sx={{
-            backgroundColor: "#5b21b6",
-            color: "#fff",
-            "&:hover": {
-              backgroundColor: "#4a148c",
-            },
-          }}
-        >
-          <AddIcon />
-        </Fab>
 
-        {/* Edit Module Button */}
-        <Fab
-          size="small"
-          onClick={() => {
-            setSelectedModule(module); 
-            setIsEditModalOpen(true);
-          }}
-          sx={{
-            backgroundColor: "#5b21b6",
-            color: "#fff",
-            "&:hover": {
-              backgroundColor: "#4a148c",
-            },
-          }}
-        >
-          <EditIcon />
-        </Fab>
-
-        {/* Delete Module Button */}
-<Fab
-  size="small"
-  onClick={() => openDeleteDialog(module)} 
-  sx={{
-    backgroundColor: "#5b21b6",
-    color: "#fff",
-    "&:hover": {
-      backgroundColor: "#4a148c",
-    },
-  }}
->
-  <DeleteIcon />
-</Fab>
-
-{/* Dialog Component */}
-<Dialog
-  open={isDeleteDialogOpen}
-  onClose={closeDeleteDialog}
-  aria-labelledby="delete-dialog-title"
-  aria-describedby="delete-dialog-description"
->
-  <DialogTitle id="delete-dialog-title">Delete Module</DialogTitle>
-  <DialogContent>
-    <DialogContentText id="delete-dialog-description">
-      Are you sure you want to delete the module{" "}
-      <strong>{moduleToDelete?.title}</strong>? This action cannot be undone.
-    </DialogContentText>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={closeDeleteDialog} sx={{ color: "#5b21b6" }}>
-      Cancel
-    </Button>
-    <Button
-      onClick={handleDeleteModule} 
-      sx={{
-        backgroundColor: "#5b21b6",
-        color: "#fff",
-        "&:hover": { backgroundColor: "#4a148c" },
-      }}
-    >
-      Delete
-    </Button>
-  </DialogActions>
-</Dialog>
-
+      {/* Lesson List */}
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "15px",
+          marginTop: "10px",
+          backgroundColor: "#ffffff",
+          padding: "15px",
+          borderRadius: "10px",
+          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+        }}
+      >
+        {lessons[module.module_id]?.length > 0 ? (
+          lessons[module.module_id].map((lesson, index) => (
+            <Card
+              key={lesson.lesson_id}
+              sx={{
+                width: "250px",
+                padding: "15px",
+                borderRadius: "10px",
+                boxShadow: "0 2px 4px rgba(91, 33, 182, 0.2)",
+                backgroundColor: "#e9d5ff",
+                color: "#5b21b6",
+              }}
+            >
+              <Typography
+                variant="subtitle1"
+                sx={{ fontWeight: "bold", marginBottom: "5px" }}
+              >
+                 {lesson.title}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "#000000", marginBottom: "10px" }}
+              >
+                {lesson.description || "No description provided."}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "#000000",
+                  fontStyle: "italic",
+                }}
+              >
+                
+              </Typography>
+            </Card>
+          ))
+        ) : (
+          <Typography variant="body2" color="textSecondary">
+            No lessons available for this module.
+          </Typography>
+        )}
       </Box>
     </Card>
   ))}
@@ -621,6 +669,7 @@ const updateModule = async (e) => {
     </Button>
   </Box>
 </Modal>
+
 
       </Box>
     </Box>

@@ -10,6 +10,8 @@ from app.models.language import Language
 from app.schemas.module import ModuleCreate, ModuleResponse
 from app.schemas.language import LanguageCreate, LanguageResponse
 from typing import Optional, List
+from app.schemas.lesson import LessonCreate, LessonResponse
+from app.models.lesson import Lesson
 import logging
 
 router = APIRouter(
@@ -207,3 +209,148 @@ async def add_language(language: LanguageCreate, db: AsyncSession = Depends(get_
     except Exception as e:
         logging.error(f"Error adding language: {e}")
         raise HTTPException(status_code=500, detail="Failed to add language")
+
+
+
+@router.post("/", response_model=LessonResponse)
+async def create_lesson(
+    lesson: LessonCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Create a new lesson
+    """
+    # Validate the module ID
+    result = await db.execute(select(Module).where(Module.module_id == lesson.module_id))
+    module = result.scalar()
+    if not module:
+        raise HTTPException(status_code=400, detail="Invalid module ID.")
+
+    try:
+        new_lesson = Lesson(
+            title=lesson.title,
+            description=lesson.description,
+            module_id=lesson.module_id,
+            version=lesson.version,
+            duration=lesson.duration,
+            difficulty=lesson.difficulty,
+        )
+        db.add(new_lesson)
+        await db.commit()
+        await db.refresh(new_lesson)
+        logging.info(f"Lesson {lesson.title} created successfully.")
+        return new_lesson
+    except Exception as e:
+        logging.error(f"Error creating lesson: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create lesson")
+
+
+# Lesson-related endpoints
+@router.post("/lessons", response_model=LessonResponse)
+async def create_lesson(
+    lesson: LessonCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Create a new lesson
+    """
+    # Validate the module ID
+    result = await db.execute(select(Module).where(Module.module_id == lesson.module_id))
+    module = result.scalar()
+    if not module:
+        raise HTTPException(status_code=400, detail="Invalid module ID.")
+
+    try:
+        new_lesson = Lesson(
+            title=lesson.title,
+            description=lesson.description,
+            module_id=lesson.module_id,
+            version=lesson.version,
+            duration=lesson.duration,
+            difficulty=lesson.difficulty,
+        )
+        db.add(new_lesson)
+        await db.commit()
+        await db.refresh(new_lesson)
+        logging.info(f"Lesson {lesson.title} created successfully.")
+        return new_lesson
+    except Exception as e:
+        logging.error(f"Error creating lesson: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create lesson")
+
+
+@router.get("/lessons", response_model=List[LessonResponse])
+async def get_lessons(
+    module_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Fetch all lessons for a given module
+    """
+    try:
+        result = await db.execute(select(Lesson).where(Lesson.module_id == module_id))
+        lessons = result.scalars().all()
+        logging.info(f"Lessons fetched for module {module_id}: {lessons}")
+        return lessons
+    except Exception as e:
+        logging.error(f"Error fetching lessons: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch lessons")
+
+
+@router.put("/lessons/{lesson_id}", response_model=LessonResponse)
+async def update_lesson(
+    lesson_id: int,
+    updated_data: LessonCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Update a lesson by ID
+    """
+    try:
+        result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
+        lesson = result.scalar()
+        if not lesson:
+            raise HTTPException(status_code=404, detail="Lesson not found.")
+
+        # Update lesson fields
+        lesson.title = updated_data.title or lesson.title
+        lesson.description = updated_data.description or lesson.description
+        lesson.duration = updated_data.duration or lesson.duration
+        lesson.difficulty = updated_data.difficulty or lesson.difficulty
+        lesson.version += 1  # Increment version
+
+        await db.commit()
+        await db.refresh(lesson)
+        logging.info(f"Lesson {lesson_id} updated successfully.")
+        return lesson
+    except Exception as e:
+        logging.error(f"Error updating lesson: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update lesson")
+
+
+@router.delete("/lessons/{lesson_id}", status_code=204)
+async def delete_lesson(
+    lesson_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Delete a lesson by ID
+    """
+    try:
+        result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
+        lesson = result.scalar()
+        if not lesson:
+            raise HTTPException(status_code=404, detail="Lesson not found.")
+
+        await db.delete(lesson)
+        await db.commit()
+        logging.info(f"Lesson {lesson_id} deleted successfully.")
+        return {"message": "Lesson deleted successfully."}
+    except Exception as e:
+        logging.error(f"Error deleting lesson: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete lesson")
