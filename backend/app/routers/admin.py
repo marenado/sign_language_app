@@ -7,6 +7,8 @@ from app.database import get_db
 from app.models.user import User
 from app.models.module import Module
 from app.models.language import Language
+from app.models.task import Task
+from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.schemas.module import ModuleCreate, ModuleResponse
 from app.schemas.language import LanguageCreate, LanguageResponse
 from typing import Optional, List
@@ -354,3 +356,119 @@ async def delete_lesson(
     except Exception as e:
         logging.error(f"Error deleting lesson: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete lesson")
+    
+
+    
+@router.post("/tasks", response_model=TaskResponse)
+async def create_task(
+    task: TaskCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Create a new task
+    """
+    # Validate lesson ID
+    result = await db.execute(select(Lesson).where(Lesson.lesson_id == task.lesson_id))
+    lesson = result.scalar()
+    if not lesson:
+        raise HTTPException(status_code=400, detail="Invalid lesson ID.")
+
+    try:
+        new_task = Task(
+            task_type=task.task_type,
+            content=task.content,
+            correct_answer=task.correct_answer,
+            lesson_id=task.lesson_id,
+            version=task.version,
+            points=task.points,
+        )
+        db.add(new_task)
+        await db.commit()
+        await db.refresh(new_task)
+        logging.info(f"Task {new_task.task_id} created successfully.")
+        return new_task
+    except Exception as e:
+        logging.error(f"Error creating task: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create task")
+    
+
+
+@router.get("/tasks", response_model=List[TaskResponse])
+async def get_tasks(
+    lesson_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Fetch all tasks for a specific lesson
+    """
+    try:
+        result = await db.execute(select(Task).where(Task.lesson_id == lesson_id))
+        tasks = result.scalars().all()
+        return tasks
+    except Exception as e:
+        logging.error(f"Error fetching tasks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch tasks")
+    
+
+
+@router.put("/tasks/{task_id}", response_model=TaskResponse)
+async def update_task(
+    task_id: int,
+    updated_task: TaskUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Update a task by ID
+    """
+    try:
+        result = await db.execute(select(Task).where(Task.task_id == task_id))
+        task = result.scalar()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found.")
+
+        # Update task fields
+        task.task_type = updated_task.task_type or task.task_type
+        task.content = updated_task.content or task.content
+        task.correct_answer = updated_task.correct_answer or task.correct_answer
+        task.version = updated_task.version or task.version
+        task.points = updated_task.points or task.points
+
+        await db.commit()
+        await db.refresh(task)
+        logging.info(f"Task {task_id} updated successfully.")
+        return task
+    except Exception as e:
+        logging.error(f"Error updating task: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update task")
+
+
+
+
+
+@router.delete("/tasks/{task_id}", status_code=204)
+async def delete_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Delete a task by ID
+    """
+    try:
+        result = await db.execute(select(Task).where(Task.task_id == task_id))
+        task = result.scalar()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found.")
+
+        await db.delete(task)
+        await db.commit()
+        logging.info(f"Task {task_id} deleted successfully.")
+        return {"message": "Task deleted successfully."}
+    except Exception as e:
+        logging.error(f"Error deleting task: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete task")
+
+    
