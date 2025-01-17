@@ -14,7 +14,7 @@ from app.utils.auth import (
     get_current_user,
 )
 from app.utils.aws_s3 import s3_client, AWS_BUCKET_NAME, AWS_REGION
-from app.utils.email import send_verification_email
+from app.utils.email_utils import send_verification_email
 from app.models.module import Module
 from app.models.lesson import Lesson
 from app.schemas.module import ModuleCreate, ModuleResponse
