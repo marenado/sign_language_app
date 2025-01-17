@@ -4,21 +4,17 @@ import axios from "axios";
 import styled from "styled-components";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import SignUp from "./components/SignUp";
-import Dashboard from "./components/Dashboard"
+import Dashboard from "./components/Dashboard";
 import Settings from "./components/Settings";
-import ModuleManagement  from "./components/ModuleManagement";
+import ModuleManagement from "./components/ModuleManagement";
 import { jwtDecode } from "jwt-decode";
-
-
 
 const Login = ({ setIsAdmin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
-  const [authUpdated, setAuthUpdated] = useState(false);
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
-  // Function to handle form submission
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -27,47 +23,21 @@ const Login = ({ setIsAdmin }) => {
         password,
       });
       const { access_token } = response.data;
-      const decodedToken = jwtDecode(access_token);
-      const isAdmin = decodedToken.is_admin;
-  
-      localStorage.setItem("authToken", access_token);
-      localStorage.setItem("isAdmin", isAdmin);
-  
-      setMessage("Login successful!");
-      setIsAdmin(isAdmin); 
-      window.location.href = isAdmin ? "/admin/modules" : "/dashboard";
-    } catch (error) {
-      setMessage("Invalid email or password. Please try again.");
-      console.error("Error:", error.response?.data?.detail || error.message);
-    }
-  };
-  
-  
-  
-  useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    if (token) {
-      try {
-        const decodedToken = jwtDecode(token);
-        setIsAdmin(decodedToken.is_admin);
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        setIsAdmin(false);
-      }
-    }
-  }, [authUpdated]); 
-  
 
-  const handleGoogleSignIn = (e) => {
-    e.preventDefault(); 
-    window.location.href = "http://127.0.0.1:8000/auth/google/login";
+      localStorage.setItem("authToken", access_token);
+      const decodedToken = jwtDecode(access_token);
+
+      const isAdmin = decodedToken.is_admin;
+      localStorage.setItem("isAdmin", isAdmin);
+
+      setIsAdmin(isAdmin);
+
+      navigate(isAdmin ? "/admin/modules" : "/dashboard"); 
+    } catch (error) {
+      console.error("Login error:", error.response?.data?.detail || error.message);
+      setMessage("Invalid email or password. Please try again.");
+    }
   };
-  
-  const handleFacebookSignIn = (e) => {
-    e.preventDefault(); 
-    window.location.href = "http://127.0.0.1:8000/auth/facebook/login";
-  };
-  
 
   return (
     <Container>
@@ -103,10 +73,10 @@ const Login = ({ setIsAdmin }) => {
           {message && <Message>{message}</Message>}
           <Separator>Or continue with</Separator>
           <SocialButtons>
-            <SocialButton className="google" onClick={handleGoogleSignIn}>
+            <SocialButton className="google" onClick={() => (window.location.href = "http://127.0.0.1:8000/auth/google/login")}>
               Sign in with Google
             </SocialButton>
-            <SocialButton className="facebook" onClick={handleFacebookSignIn}>
+            <SocialButton className="facebook" onClick={() => (window.location.href = "http://127.0.0.1:8000/auth/facebook/login")}>
               Sign in with Facebook
             </SocialButton>
           </SocialButtons>
@@ -120,61 +90,54 @@ const Login = ({ setIsAdmin }) => {
 };
 
 const App = () => {
-  const [isAdmin, setIsAdmin] = useState(null); 
+  const [isAdmin, setIsAdmin] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
+
     if (token) {
       try {
-        const decodedToken = jwtDecode(token); 
-        setIsAdmin(decodedToken.is_admin); 
+        const decodedToken = jwtDecode(token);
+        setIsAdmin(decodedToken.is_admin);
       } catch (error) {
         console.error("Error decoding token:", error);
-        setIsAdmin(false); 
+        setIsAdmin(false);
       }
+    } else {
+      setIsAdmin(false);
     }
   }, []);
 
   if (isAdmin === null) {
-    return <div>Loading...</div>; 
+    
+    return <div>Loading...</div>;
   }
 
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
         <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
         <Route path="/signup" element={<SignUp />} />
-
-        {/* Admin Route */}
         <Route
           path="/admin/modules"
-          element={
-            isAdmin ? <ModuleManagement /> : <div>Access Denied</div>
-          }
+          element={isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
         />
-
-        {/* User Routes */}
         <Route
           path="/dashboard"
-          element={
-            isAdmin ? <div>Access Denied</div> : <Dashboard />
-          }
+          element={!isAdmin ? <Dashboard /> : <div>Access Denied</div>}
         />
         <Route
           path="/settings"
-          element={
-            isAdmin ? <div>Access Denied</div> : <Settings />
-          }
+          element={!isAdmin ? <Settings /> : <div>Access Denied</div>}
         />
       </Routes>
     </Router>
   );
 };
 
-
-
 export default App;
+
+
 
 
 
