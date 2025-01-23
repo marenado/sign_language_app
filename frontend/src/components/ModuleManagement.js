@@ -26,6 +26,7 @@ import {
 const BASE_URL = "http://localhost:8000";
 
 const ModuleManagement = () => {
+  // State hooks
   const [modules, setModules] = useState([]);
   const [lessons, setLessons] = useState({});
   const [moduleData, setModuleData] = useState({
@@ -37,20 +38,35 @@ const ModuleManagement = () => {
   const [languages, setLanguages] = useState([]);
   const [selectedLanguage, setSelectedLanguage] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [selectedModule, setSelectedModule] = useState(null); 
+  const [selectedModule, setSelectedModule] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newLanguage, setNewLanguage] = useState({ code: "", name: "" });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [moduleToDelete, setModuleToDelete] = useState(null);
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
-  const [lessonData, setLessonData] = useState({
-    title: "",
-    description: "",
+  const [tasks, setTasks] = useState({});
+  const [selectedLesson, setSelectedLesson] = useState(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskData, setTaskData] = useState({
+    task_type: "",
+    content: {},
+    correct_answer: {},
+    points: 1,
     version: 1,
-    difficulty: "",
-    duration: null,
   });
+  const [videoSearchQuery, setVideoSearchQuery] = useState("");
+  const [videoSearchResults, setVideoSearchResults] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [newLesson, setNewLesson] = useState({
+    title: "", // Required
+    description: null, // Set to null by default for optional fields
+    difficulty: null, // Set to null by default for optional fields
+    duration: null, // Set to null by default for optional fields
+    version: 1, // Add version since it’s required
+  });
+  
+
   const navigate = useNavigate();
 
 
@@ -79,6 +95,34 @@ const handleDeleteModule = async () => {
   }
 };
 
+const openLessonModal = (module) => {
+  setSelectedModule(module);
+  setIsLessonModalOpen(true);
+};
+
+// Handle closing the lesson modal
+const closeLessonModal = () => {
+  setIsLessonModalOpen(false);
+  setNewLesson({ title: "", description: "", difficulty: "", duration: null });
+};
+
+
+
+
+const searchVideos = async () => {
+  if (!videoSearchQuery.trim()) return; // Skip if search query is empty
+
+  try {
+    const res = await axios.get(`${BASE_URL}/admin/videos?search=${videoSearchQuery}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+    });
+    setVideoSearchResults(res.data);
+  } catch (error) {
+    console.error("Error fetching videos:", error.response?.data || error.message);
+  }
+};
+
+
   // Check authentication
   const checkAuth = useCallback(() => {
     const token = localStorage.getItem("authToken");
@@ -104,6 +148,43 @@ const handleDeleteModule = async () => {
       console.error("Error fetching languages:", error.response?.data || error.message);
     }
   }, []);
+
+
+  const createLesson = async () => {
+    if (!selectedModule) {
+      console.error("No module selected.");
+      return;
+    }
+    if (!newLesson.title || !newLesson.description) {
+      console.error("Title and description are required.");
+      return;
+    }
+  
+    try {
+      const lessonData = {
+        ...newLesson,
+        module_id: selectedModule.module_id, // Ensure module_id is included
+      };
+  
+      // Send the new lesson to the backend
+      await axios.post(`${BASE_URL}/admin/lessons`, lessonData, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+      });
+  
+      // Refresh lessons for the module
+      await fetchLessons(selectedModule.module_id);
+  
+      // Reset form and close modal
+      closeLessonModal();
+      console.log("Lesson created and lessons refreshed successfully!");
+    } catch (error) {
+      console.error("Error creating lesson:", error.response?.data || error.message);
+    }
+  };
+  
+  
+
+ 
 
 
   const createLanguage = async () => {
@@ -173,16 +254,39 @@ const handleDeleteModule = async () => {
     }
   }, [isAuthenticated, selectedLanguage, navigate]);
 
+
   const fetchLessons = async (moduleId) => {
+    if (!moduleId) {
+      console.error("Module ID is required to fetch lessons.");
+      return;
+    }
     try {
-      const res = await axios.get(`${BASE_URL}/admin/lessons?module_id=${moduleId}`, {
+      const response = await axios.get(`${BASE_URL}/admin/lessons?module_id=${moduleId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
-      setLessons((prev) => ({ ...prev, [moduleId]: res.data }));
+      setLessons((prevLessons) => ({
+        ...prevLessons,
+        [moduleId]: response.data,
+      }));
+      console.log(`Lessons fetched for module ${moduleId}:`, response.data);
     } catch (error) {
       console.error(`Error fetching lessons for module ${moduleId}:`, error.response?.data || error.message);
     }
   };
+  
+  
+
+  const fetchTasks = async (lessonId) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/admin/tasks?lesson_id=${lessonId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+      });
+      setTasks((prev) => ({ ...prev, [lessonId]: res.data }));
+    } catch (error) {
+      console.error(`Error fetching tasks for lesson ${lessonId}:`, error.response?.data || error.message);
+    }
+  };
+  
 
   
  // Function to map language codes to their respective flag URLs
@@ -226,6 +330,32 @@ const updateModule = async (e) => {
     console.error("Error updating module:", error.response?.data || error.message);
   }
 };
+
+
+const createTask = async () => {
+  if (!selectedLesson) {
+    console.error("No lesson selected.");
+    return;
+  }
+  try {
+    await axios.post(
+      `${BASE_URL}/admin/tasks`,
+      { ...taskData, lesson_id: selectedLesson.lesson_id, video_id: selectedVideo?.video_id },
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+      }
+    );
+    fetchTasks(selectedLesson.lesson_id);
+    setIsTaskModalOpen(false);
+    setTaskData({ task_type: "", content: {}, correct_answer: {}, points: 1, version: 1 });
+    setSelectedVideo(null);
+  } catch (error) {
+    console.error("Error creating task:", error.response?.data || error.message);
+  }
+};
+
+
+
 
 
   // Handle module creation
@@ -559,61 +689,161 @@ const updateModule = async (e) => {
         </Box>
       </Box>
 
+
+
+
       {/* Lesson List */}
-      <Box
+{/* Lesson List */}
+<Box
+  sx={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", // Responsive grid layout
+    gap: "20px",
+    marginTop: "20px",
+    padding: "20px",
+    backgroundColor: "#ffffff",
+    borderRadius: "10px",
+    boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)", // Improved shadow for better contrast
+    position: "relative", // For positioning the Fab button
+  }}
+>
+  {/* Add Lesson Button */}
+  <Fab
+    size="medium"
+    sx={{
+      position: "absolute",
+      top: "-20px", // Adjust position relative to the lesson list
+      right: "10px",
+      backgroundColor: "#5b21b6",
+      color: "#fff",
+      zIndex: 1000, // Ensure it appears above other elements
+      "&:hover": { backgroundColor: "#4a148c" },
+    }}
+    onClick={() => setIsLessonModalOpen(true)} // Handle lesson modal opening
+  >
+    <AddIcon />
+  </Fab>
+
+  {lessons[module.module_id]?.length > 0 ? (
+    lessons[module.module_id].map((lesson) => (
+      <Card
+        key={lesson.lesson_id}
         sx={{
           display: "flex",
-          flexWrap: "wrap",
-          gap: "15px",
-          marginTop: "10px",
-          backgroundColor: "#ffffff",
-          padding: "15px",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          textAlign: "center",
+          padding: "20px",
           borderRadius: "10px",
+          backgroundColor: "#e9d5ff",
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+          transition: "transform 0.2s, box-shadow 0.2s", // Smooth hover effect
+          "&:hover": {
+            transform: "scale(1.05)", // Slightly enlarge on hover
+            boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+          },
+        }}
+        onClick={() => {
+          console.log("Navigating to tasks for lesson:", lesson.lesson_id);
+          navigate(`/admin/lessons/${lesson.lesson_id}/tasks`);
         }}
       >
-        {lessons[module.module_id]?.length > 0 ? (
-          lessons[module.module_id].map((lesson, index) => (
-            <Card
-              key={lesson.lesson_id}
-              sx={{
-                width: "250px",
-                padding: "15px",
-                borderRadius: "10px",
-                boxShadow: "0 2px 4px rgba(91, 33, 182, 0.2)",
-                backgroundColor: "#e9d5ff",
-                color: "#5b21b6",
-              }}
-            >
-              <Typography
-                variant="subtitle1"
-                sx={{ fontWeight: "bold", marginBottom: "5px" }}
-              >
-                 {lesson.title}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "#000000", marginBottom: "10px" }}
-              >
-                {lesson.description || "No description provided."}
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "#000000",
-                  fontStyle: "italic",
-                }}
-              >
-                
-              </Typography>
-            </Card>
-          ))
-        ) : (
-          <Typography variant="body2" color="textSecondary">
-            No lessons available for this module.
-          </Typography>
-        )}
-      </Box>
+        <Typography
+          variant="h6"
+          sx={{ fontWeight: "bold", color: "#4a148c", marginBottom: "10px" }}
+        >
+          {lesson.title}
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{ color: "#6b7280", marginBottom: "10px" }}
+        >
+          {lesson.description || "No description provided."}
+        </Typography>
+        <Typography
+          variant="caption"
+          sx={{ color: "#6b7280", fontStyle: "italic" }}
+        >
+          Difficulty: {lesson.difficulty || "N/A"} | Duration: {lesson.duration || "N/A"} mins
+        </Typography>
+      </Card>
+    ))
+  ) : (
+    <Typography
+      variant="body2"
+      sx={{
+        color: "#6b7280",
+        textAlign: "center",
+        gridColumn: "span 3", // Span full width when no lessons are present
+      }}
+    >
+      No lessons available for this module.
+    </Typography>
+  )}
+</Box>
+
+{/* Modal for Adding a Lesson */}
+<Modal open={isLessonModalOpen} onClose={closeLessonModal}>
+  <Box
+    sx={{
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "400px",
+      backgroundColor: "white",
+      padding: "20px",
+      borderRadius: "10px",
+      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+    }}
+  >
+    <Typography variant="h6" sx={{ marginBottom: "20px", textAlign: "center" }}>
+      Add New Lesson
+    </Typography>
+    <TextField
+      fullWidth
+      label="Title"
+      value={newLesson.title}
+      onChange={(e) => setNewLesson({ ...newLesson, title: e.target.value })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <TextField
+      fullWidth
+      label="Description"
+      multiline
+      rows={3}
+      value={newLesson.description}
+      onChange={(e) => setNewLesson({ ...newLesson, description: e.target.value })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <TextField
+      fullWidth
+      label="Difficulty"
+      value={newLesson.difficulty}
+      onChange={(e) => setNewLesson({ ...newLesson, difficulty: e.target.value })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <TextField
+      fullWidth
+      label="Duration (minutes)"
+      type="number"
+      value={newLesson.duration || ""}
+      onChange={(e) => setNewLesson({ ...newLesson, duration: Number(e.target.value) })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <Button
+      variant="contained"
+      color="primary"
+      onClick={createLesson} // Call the function to create a lesson
+      sx={{ display: "block", marginLeft: "auto", marginRight: "auto" }}
+    >
+      Save Lesson
+    </Button>
+  </Box>
+</Modal>
+
+
+
     </Card>
   ))}
 </Box>
@@ -670,10 +900,130 @@ const updateModule = async (e) => {
   </Box>
 </Modal>
 
+<Modal open={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)}>
+  <Box
+    sx={{
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      backgroundColor: "white",
+      padding: "20px",
+      borderRadius: "10px",
+      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+      width: "500px",
+    }}
+  >
+    <Typography variant="h6" sx={{ textAlign: "center", marginBottom: "20px" }}>
+      {taskData.task_id ? "Edit Task" : "Create Task"}
+    </Typography>
+
+    {/* Task Type Selector */}
+    <TextField
+      select
+      fullWidth
+      label="Task Type"
+      value={taskData.task_type}
+      onChange={(e) => setTaskData({ ...taskData, task_type: e.target.value })}
+      sx={{ marginBottom: "15px" }}
+      SelectProps={{ native: true }}
+    >
+      <option value="">Select Task Type</option>
+      <option value="multiple_choice">Multiple Choice</option>
+      <option value="matching">Matching</option>
+      <option value="typing">Typing</option>
+    </TextField>
+
+    {/* Video Search */}
+    <TextField
+      fullWidth
+      label="Search Videos"
+      value={videoSearchQuery}
+      onChange={(e) => setVideoSearchQuery(e.target.value)}
+      sx={{ marginBottom: "10px" }}
+    />
+    <Button onClick={searchVideos} sx={{ marginBottom: "15px" }}>
+      Search
+    </Button>
+
+    {/* Video Results */}
+    <Box sx={{ maxHeight: "200px", overflowY: "auto", marginBottom: "15px" }}>
+      {videoSearchResults.map((video) => (
+        <Box
+          key={video.video_id}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px",
+            border: "1px solid #ccc",
+            borderRadius: "5px",
+            marginBottom: "5px",
+            cursor: "pointer",
+            backgroundColor:
+              selectedVideo?.video_id === video.video_id ? "#ddd" : "#fff",
+          }}
+          onClick={() => setSelectedVideo(video)}
+        >
+          <Typography>{video.gloss}</Typography>
+          <video src={video.video_url} width="100" controls />
+        </Box>
+      ))}
+    </Box>
+
+    {/* Task Content */}
+    {taskData.task_type === "multiple_choice" && (
+      <TextField
+        fullWidth
+        label="Options (JSON format)"
+        value={JSON.stringify(taskData.content.options || [])}
+        onChange={(e) =>
+          setTaskData({
+            ...taskData,
+            content: { ...taskData.content, options: JSON.parse(e.target.value) },
+          })
+        }
+        sx={{ marginBottom: "15px" }}
+      />
+    )}
+
+    {/* Correct Answer */}
+    <TextField
+      fullWidth
+      label="Correct Answer (JSON format)"
+      value={JSON.stringify(taskData.correct_answer)}
+      onChange={(e) =>
+        setTaskData({
+          ...taskData,
+          correct_answer: JSON.parse(e.target.value),
+        })
+      }
+      sx={{ marginBottom: "15px" }}
+    />
+
+    {/* Save Task */}
+    <Button
+      onClick={createTask}
+      fullWidth
+      sx={{
+        backgroundColor: "#5b21b6",
+        color: "#fff",
+        "&:hover": { backgroundColor: "#4a148c" },
+      }}
+    >
+      Save Task
+    </Button>
+  </Box>
+</Modal>
+
+
 
       </Box>
     </Box>
   );
 };
+
+
+
 
 export default ModuleManagement;

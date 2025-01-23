@@ -12,6 +12,7 @@ from app.models.video_reference import VideoReference
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.schemas.module import ModuleCreate, ModuleResponse
 from app.schemas.language import LanguageCreate, LanguageResponse
+from app.schemas.video_reference import VideoReferenceResponse
 from typing import Optional, List
 from app.schemas.lesson import LessonCreate, LessonResponse
 from app.models.lesson import Lesson
@@ -214,39 +215,6 @@ async def add_language(language: LanguageCreate, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=500, detail="Failed to add language")
 
 
-
-@router.post("/", response_model=LessonResponse)
-async def create_lesson(
-    lesson: LessonCreate,
-    db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin),
-):
-    """
-    Create a new lesson
-    """
-    # Validate the module ID
-    result = await db.execute(select(Module).where(Module.module_id == lesson.module_id))
-    module = result.scalar()
-    if not module:
-        raise HTTPException(status_code=400, detail="Invalid module ID.")
-
-    try:
-        new_lesson = Lesson(
-            title=lesson.title,
-            description=lesson.description,
-            module_id=lesson.module_id,
-            version=lesson.version,
-            duration=lesson.duration,
-            difficulty=lesson.difficulty,
-        )
-        db.add(new_lesson)
-        await db.commit()
-        await db.refresh(new_lesson)
-        logging.info(f"Lesson {lesson.title} created successfully.")
-        return new_lesson
-    except Exception as e:
-        logging.error(f"Error creating lesson: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create lesson")
 
 
 # Lesson-related endpoints
@@ -524,4 +492,21 @@ async def get_tasks_by_video(
         raise HTTPException(status_code=500, detail="Failed to fetch tasks by video")
 
 
-    
+@router.get("/videos", response_model=List[VideoReferenceResponse])
+async def search_videos(
+    query: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Search videos in the VideoReference table based on the gloss (word).
+    """
+    try:
+        result = await db.execute(
+            select(VideoReference).where(VideoReference.gloss.ilike(f"%{query}%"))
+        )
+        videos = result.scalars().all()
+        return videos
+    except Exception as e:
+        logging.error(f"Error searching videos: {e}")
+        raise HTTPException(status_code=500, detail="Failed to search videos")

@@ -5,6 +5,8 @@ import styled from "styled-components";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import SignUp from "./components/SignUp";
 import Dashboard from "./components/Dashboard";
+import TaskList from "./components/TaskList";
+import TaskCreation from "./components/TaskCreation";
 import Settings from "./components/Settings";
 import ModuleManagement from "./components/ModuleManagement";
 import { jwtDecode } from "jwt-decode";
@@ -130,6 +132,11 @@ const App = () => {
           path="/settings"
           element={!isAdmin ? <Settings /> : <div>Access Denied</div>}
         />
+
+
+        <Route path="/admin/lessons/:lessonId/tasks" element={<TaskList />} />
+        <Route path="/admin/lessons/:lessonId/tasks/new" element={<TaskCreation />} />
+
       </Routes>
     </Router>
   );
