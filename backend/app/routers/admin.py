@@ -8,6 +8,7 @@ from app.models.user import User
 from app.models.module import Module
 from app.models.language import Language
 from app.models.task import Task
+from app.models.video_reference import VideoReference
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.schemas.module import ModuleCreate, ModuleResponse
 from app.schemas.language import LanguageCreate, LanguageResponse
@@ -366,13 +367,19 @@ async def create_task(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Create a new task
+    Create a new task, optionally linking it to a video.
     """
     # Validate lesson ID
     result = await db.execute(select(Lesson).where(Lesson.lesson_id == task.lesson_id))
     lesson = result.scalar()
     if not lesson:
         raise HTTPException(status_code=400, detail="Invalid lesson ID.")
+
+    # Validate video ID (if provided)
+    if task.video_id:
+        video_result = await db.execute(select(VideoReference).where(VideoReference.video_id == task.video_id))
+        if not video_result.scalar():
+            raise HTTPException(status_code=400, detail="Invalid video ID.")
 
     try:
         new_task = Task(
@@ -382,6 +389,7 @@ async def create_task(
             lesson_id=task.lesson_id,
             version=task.version,
             points=task.points,
+            video_id=task.video_id,  # Optional
         )
         db.add(new_task)
         await db.commit()
@@ -391,6 +399,7 @@ async def create_task(
     except Exception as e:
         logging.error(f"Error creating task: {e}")
         raise HTTPException(status_code=500, detail="Failed to create task")
+
     
 
 
@@ -401,15 +410,38 @@ async def get_tasks(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Fetch all tasks for a specific lesson
+    Fetch all tasks for a specific lesson, including linked video details.
     """
     try:
-        result = await db.execute(select(Task).where(Task.lesson_id == lesson_id))
-        tasks = result.scalars().all()
-        return tasks
+        result = await db.execute(
+            select(Task, VideoReference)
+            .join(VideoReference, Task.video_id == VideoReference.video_id, isouter=True)
+            .where(Task.lesson_id == lesson_id)
+        )
+        tasks = result.fetchall()
+        return [
+            {
+                "task_id": task.task_id,
+                "task_type": task.task_type,
+                "content": task.content,
+                "correct_answer": task.correct_answer,
+                "lesson_id": task.lesson_id,
+                "version": task.version,
+                "points": task.points,
+                "video": {
+                    "video_id": video.video_id,
+                    "video_url": video.video_url,
+                    "gloss": video.gloss,
+                }
+                if video
+                else None,
+            }
+            for task, video in tasks
+        ]
     except Exception as e:
         logging.error(f"Error fetching tasks: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch tasks")
+
     
 
 
@@ -470,5 +502,26 @@ async def delete_task(
     except Exception as e:
         logging.error(f"Error deleting task: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete task")
+    
+
+
+
+@router.get("/tasks/video/{video_id}", response_model=List[TaskResponse])
+async def get_tasks_by_video(
+    video_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Fetch all tasks linked to a specific video.
+    """
+    try:
+        result = await db.execute(select(Task).where(Task.video_id == video_id))
+        tasks = result.scalars().all()
+        return tasks
+    except Exception as e:
+        logging.error(f"Error fetching tasks by video: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch tasks by video")
+
 
     

@@ -12,5 +12,5 @@ class Task(Base):
     lesson_id = Column(Integer, ForeignKey("lesson.lesson_id"), nullable=False)
     version = Column(Integer, nullable=False)
     points = Column(Integer, nullable=False)
-    video_url = Column(Text, nullable=True)
+    video_id = Column(String, ForeignKey("video_reference.video_id"), nullable=True)
 
