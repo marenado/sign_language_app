@@ -737,6 +737,7 @@ const createTask = async () => {
           borderRadius: "10px",
           backgroundColor: "#e9d5ff",
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+          height: "150px", // Ensures all cards have the same height
           transition: "transform 0.2s, box-shadow 0.2s", // Smooth hover effect
           "&:hover": {
             transform: "scale(1.05)", // Slightly enlarge on hover
@@ -756,7 +757,7 @@ const createTask = async () => {
         </Typography>
         <Typography
           variant="body2"
-          sx={{ color: "#6b7280", marginBottom: "10px" }}
+          sx={{ color: "#6b7280", marginBottom: "10px", flexGrow: 1 }}
         >
           {lesson.description || "No description provided."}
         </Typography>
@@ -781,6 +782,7 @@ const createTask = async () => {
     </Typography>
   )}
 </Box>
+
 
 {/* Modal for Adding a Lesson */}
 <Modal open={isLessonModalOpen} onClose={closeLessonModal}>
