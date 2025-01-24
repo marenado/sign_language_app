@@ -2,24 +2,27 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 class LessonBase(BaseModel):
-    title: str = Field(..., example="Introduction to Sign Language")  # Required field with an example
-    description: Optional[str] = Field(None, example="This is a beginner-level lesson.")  # Optional field with a default value of None
-    version: int = Field(..., example=1)  # Required field with an example
-    duration: Optional[int] = Field(None, example=30)  # Optional field, in minutes
-    difficulty: Optional[str] = Field(None, example="Beginner")  # Optional field
+    title: str = Field(..., max_length=50, example="Introduction to Sign Language")
+    description: Optional[str] = Field(None, max_length=2000, example="Beginner lesson.")
+    version: int = Field(..., ge=1, example=1)
+    duration: Optional[int] = Field(None, ge=1, example=30)
+    difficulty: Optional[str] = Field(None, max_length=20, example="Beginner")
 
 class LessonCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    version: int
-    duration: Optional[int] = None
-    difficulty: Optional[str] = None
-    module_id: int
+    """
+    Schema for creating and updating lessons.
+    """
+    title: Optional[str] = Field(None, max_length=50, example="Lesson Title")
+    description: Optional[str] = Field(None, max_length=2000, example="Lesson description")
+    module_id: Optional[int] = Field(None, example=1)
+    duration: Optional[int] = Field(None, ge=1, example=30)
+    difficulty: Optional[str] = Field(None, max_length=20, example="Beginner")
+    version: Optional[int] = Field(None)  # Make `version` optional
 
 
 class LessonResponse(LessonBase):
-    lesson_id: int = Field(..., example=1)  # Required field for the response
-    module_id: int = Field(..., example=1)  # Module ID to which the lesson belongs
+    lesson_id: int
+    module_id: int
 
     class Config:
-        orm_mode = True  # Enable ORM mode to work with SQLAlchemy models
+        orm_mode = True

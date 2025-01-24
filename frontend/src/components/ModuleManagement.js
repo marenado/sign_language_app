@@ -59,7 +59,19 @@ const ModuleManagement = () => {
     version: 1,
   });
   
-
+  const modalStyle = {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    width: "400px",
+    backgroundColor: "white",
+    border: "2px solid #ccc",
+    boxShadow: 24,
+    padding: "20px",
+    borderRadius: "10px",
+  };
+  
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [activeLessonId, setActiveLessonId] = useState(null);
   const [editLessonModalOpen, setEditLessonModalOpen] = useState(false);
@@ -74,13 +86,14 @@ const ModuleManagement = () => {
   const [videoSearchResults, setVideoSearchResults] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [newLesson, setNewLesson] = useState({
-    title: "", // Required
-    description: null, // Set to null by default for optional fields
-    difficulty: null, // Set to null by default for optional fields
-    duration: null, // Set to null by default for optional fields
-    version: 1, // Add version since it’s required
-  });
-  
+    title: "",          // Empty string as it's a required field
+    description: "",    // Empty string as it's a required field
+    version: 1,         // Default to 1
+    duration: null,     // Set to null initially (optional)
+    difficulty: "Beginner", // Default to "Beginner"
+    module_id: null     // Set to null until a module is selected
+});
+
 
   const navigate = useNavigate();
 
@@ -97,6 +110,7 @@ const closeDeleteDialog = () => {
 };
 
 
+
   const openMenu = (event, lessonId) => {
     setMenuAnchor(event.currentTarget);
     setActiveLessonId(lessonId); // Track which lesson menu is open
@@ -109,10 +123,16 @@ const closeDeleteDialog = () => {
 
 
   const openEditLessonModal = (lesson) => {
-    setLessonToEdit(lesson);
-    setEditLessonModalOpen(true);
+    if (!lesson || !lesson.lesson_id) {
+      console.error("Invalid lesson object:", lesson);
+      return;
+    }
+    console.log("Opening edit modal for lesson ID:", lesson.lesson_id); // Debug log
+    setActiveLessonId(lesson.lesson_id); // Set the correct lesson ID
+    setLessonToEdit(lesson); // Populate modal with lesson details
+    setEditLessonModalOpen(true); // Open the modal
   };
-
+  
   const closeEditLessonModal = () => {
     setEditLessonModalOpen(false);
     setLessonToEdit({
@@ -123,15 +143,21 @@ const closeDeleteDialog = () => {
     });
   };
 
-
   const handleDeleteLesson = async () => {
+    if (!activeLessonId) {
+      console.error("No active lesson ID set for deletion.");
+      return;
+    }
+  
     try {
       await axios.delete(`${BASE_URL}/lessons/${activeLessonId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
       console.log(`Lesson ${activeLessonId} deleted successfully.`);
-      // Refresh the lessons list (fetch lessons for the module again)
       closeMenu();
+      if (selectedModule) {
+        await fetchLessons(selectedModule.module_id); // Refresh lessons
+      }
     } catch (error) {
       console.error(
         `Error deleting lesson ${activeLessonId}:`,
@@ -139,21 +165,33 @@ const closeDeleteDialog = () => {
       );
     }
   };
+  
+  
 
   const handleEditLesson = async () => {
+    if (!activeLessonId) {
+      console.error("No active lesson ID is set for updating.");
+      return;
+    }
+  
+    if (!lessonToEdit.title || !lessonToEdit.description) {
+      console.error("Title and description are required.");
+      return;
+    }
+  
+    console.log("Updating lesson with ID:", activeLessonId); // Debug log
+  
     try {
       await axios.put(
         `${BASE_URL}/lessons/${activeLessonId}`,
-        {
-          ...lessonToEdit,
-        },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }
+        { ...lessonToEdit },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` } }
       );
       console.log(`Lesson ${activeLessonId} updated successfully.`);
-      // Refresh the lessons list (fetch lessons for the module again)
       closeEditLessonModal();
+      if (selectedModule) {
+        await fetchLessons(selectedModule.module_id); // Refresh lessons
+      }
     } catch (error) {
       console.error(
         `Error updating lesson ${activeLessonId}:`,
@@ -161,6 +199,9 @@ const closeDeleteDialog = () => {
       );
     }
   };
+  
+  
+  
 
 
 const handleDeleteModule = async () => {
@@ -233,38 +274,34 @@ const searchVideos = async () => {
 
 
   const createLesson = async () => {
-    if (!selectedModule) {
-      console.error("No module selected.");
-      return;
+    if (!selectedModule || !selectedModule.module_id) {
+        console.error("No module selected.");
+        return;
     }
-    if (!newLesson.title || !newLesson.description) {
-      console.error("Title and description are required.");
-      return;
-    }
-  
-    try {
-      const lessonData = {
-        ...newLesson,
-        module_id: selectedModule.module_id, // Ensure module_id is included
-      };
-  
-      // Send the new lesson to the backend
-      await axios.post(`${BASE_URL}/admin/lessons`, lessonData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
-  
-      // Refresh lessons for the module
-      await fetchLessons(selectedModule.module_id);
-  
-      // Reset form and close modal
-      closeLessonModal();
-      console.log("Lesson created and lessons refreshed successfully!");
-    } catch (error) {
-      console.error("Error creating lesson:", error.response?.data || error.message);
-    }
-  };
-  
-  
+
+    // Add a short delay to ensure state updates are completed
+    setTimeout(async () => {
+        const lessonData = {
+            ...newLesson,
+            duration: newLesson.duration || 0,
+            difficulty: newLesson.difficulty || "Beginner",
+            module_id: selectedModule.module_id,
+        };
+
+        console.log("Lesson data to be sent:", lessonData);
+
+        try {
+            const response = await axios.post(`${BASE_URL}/admin/lessons`, lessonData, {
+                headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+            });
+            console.log("Lesson created successfully:", response.data);
+            await fetchLessons(selectedModule.module_id);
+            closeLessonModal();
+        } catch (error) {
+            console.error("Error creating lesson:", error.response?.data || error.message);
+        }
+    }, 0);
+};
 
  
 
@@ -844,8 +881,7 @@ const createTask = async () => {
 
 
 
-
-    {/* Lesson List */}
+{/* Lesson List */}
 <Box
   sx={{
     display: "grid",
@@ -861,123 +897,122 @@ const createTask = async () => {
 >
   {lessons[module.module_id]?.length > 0 ? (
     lessons[module.module_id].map((lesson) => (
-   
-
-
       <Card
-  key={lesson.lesson_id}
-  sx={{
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "space-between",
-    textAlign: "left",
-    padding: "20px",
-    borderRadius: "10px",
-    backgroundColor: "#e9d5ff",
-    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-    height: "200px", // Allow height to adjust based on content
-    transition: "transform 0.2s, box-shadow 0.2s",
-    "&:hover": {
-      transform: "scale(1.05)",
-      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
-    },
-    position: "relative",
+        key={lesson.lesson_id}
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          textAlign: "left",
+          padding: "20px",
+          borderRadius: "10px",
+          backgroundColor: "#e9d5ff",
+          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+          height: "200px",
+          transition: "transform 0.2s, box-shadow 0.2s",
+          "&:hover": {
+            transform: "scale(1.05)",
+            boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+          },
+          position: "relative",
+        }}
+      >
+        {/* Header Section */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: "bold",
+              color: "#4a148c",
+              marginBottom: "10px",
+              whiteSpace: "normal",
+              overflow: "visible",
+              textAlign: "left",
+            }}
+          >
+            {lesson.title}
+          </Typography>
+          <IconButton
+            aria-label="settings"
+            onClick={(event) => openMenu(event, lesson.lesson_id)}
+            sx={{
+              color: "#4a148c",
+              "&:hover": { color: "#5b21b6" },
+            }}
+          >
+            <MoreVertIcon />
+          </IconButton>
+
+          {/* Menu */}
+          <Menu
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor) && activeLessonId === lesson.lesson_id}
+            onClose={closeMenu}
+            sx={{
+              "& .MuiPaper-root": {
+                backgroundColor: "#ffffff",
+                borderRadius: "10px",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+              },
+            }}
+          >
+            <MenuItem
+  onClick={() => {
+    console.log("Edit Lesson clicked for ID:", lesson.lesson_id); // Debug log
+    openEditLessonModal(lesson);
+    closeMenu();
   }}
 >
-  {/* Header Section */}
-  <Box
-    sx={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <Typography
-      variant="h6"
-      sx={{
-        fontWeight: "bold",
-        color: "#4a148c",
-        marginBottom: "10px",
-        whiteSpace: "normal", // Allow wrapping
-        overflow: "visible", // Ensure the text doesn't get clipped
-        textAlign: "left",
-      }}
-    >
-      {lesson.title}
-    </Typography>
-    <IconButton
-  aria-label="settings"
-  onClick={(event) => openMenu(event, lesson.lesson_id)}
-  sx={{
-    color: "#4a148c",
-    "&:hover": { color: "#5b21b6" },
+  Edit Lesson
+</MenuItem>
+
+            <MenuItem
+  onClick={() => {
+    setActiveLessonId(lesson.lesson_id); // Set the correct lesson ID
+    handleDeleteLesson(); // Trigger delete function
+    closeMenu();
   }}
 >
-  <MoreVertIcon />
-</IconButton>
+  Delete Lesson
+</MenuItem>
 
-<Menu
-  anchorEl={menuAnchor}
-  open={Boolean(menuAnchor) && activeLessonId === lesson.lesson_id}
-  onClose={closeMenu}
-  sx={{
-    "& .MuiPaper-root": {
-      backgroundColor: "#ffffff",
-      borderRadius: "10px",
-      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-    },
-  }}
->
-  <MenuItem
-    onClick={() => {
-      openEditLessonModal(lesson); // Pass lesson directly
-      closeMenu();
-    }}
-  >
-    Edit Lesson
-  </MenuItem>
-  <MenuItem
-    onClick={() => {
-      handleDeleteLesson(lesson.lesson_id); // Pass lesson ID directly
-      closeMenu();
-    }}
-  >
-    Delete Lesson
-  </MenuItem>
-</Menu>
+          </Menu>
+        </Box>
 
-  </Box>
+        {/* Description */}
+        <Typography
+          variant="body2"
+          sx={{
+            color: "#6b7280",
+            marginTop: "10px",
+            marginBottom: "10px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "-webkit-box",
+            WebkitLineClamp: 2, // Limit to 2 lines
+            WebkitBoxOrient: "vertical",
+          }}
+        >
+          {lesson.description || "No description provided."}
+        </Typography>
 
-  {/* Description */}
-  <Typography
-    variant="body2"
-    sx={{
-      color: "#6b7280",
-      marginTop: "10px",
-      marginBottom: "10px",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      display: "-webkit-box",
-      WebkitLineClamp: 2, // Limit to 2 lines
-      WebkitBoxOrient: "vertical",
-    }}
-  >
-    {lesson.description || "No description provided."}
-  </Typography>
-
-  {/* Footer Section */}
-  <Typography
-    variant="caption"
-    sx={{
-      color: "#6b7280",
-      fontStyle: "italic",
-    }}
-  >
-    Difficulty: {lesson.difficulty || "N/A"} | Duration: {lesson.duration || "N/A"} mins
-  </Typography>
-</Card>
-
-
+        {/* Footer Section */}
+        <Typography
+          variant="caption"
+          sx={{
+            color: "#6b7280",
+            fontStyle: "italic",
+          }}
+        >
+          Difficulty: {lesson.difficulty || "N/A"} | Duration: {lesson.duration || "N/A"} mins
+        </Typography>
+      </Card>
     ))
   ) : (
     <Typography
@@ -993,7 +1028,72 @@ const createTask = async () => {
   )}
 </Box>
 
-
+{/* Edit Lesson Modal */}
+{editLessonModalOpen && (
+  <Modal
+    open={editLessonModalOpen}
+    onClose={closeEditLessonModal}
+    aria-labelledby="edit-lesson-modal-title"
+    aria-describedby="edit-lesson-modal-description"
+  >
+    <Box sx={{ ...modalStyle }}>
+      <Typography id="edit-lesson-modal-title" variant="h6">
+        Edit Lesson
+      </Typography>
+      <TextField
+        label="Title"
+        value={lessonToEdit.title}
+        onChange={(e) =>
+          setLessonToEdit((prev) => ({ ...prev, title: e.target.value }))
+        }
+        fullWidth
+        margin="normal"
+      />
+      <TextField
+        label="Description"
+        value={lessonToEdit.description}
+        onChange={(e) =>
+          setLessonToEdit((prev) => ({ ...prev, description: e.target.value }))
+        }
+        fullWidth
+        margin="normal"
+      />
+      <TextField
+        label="Duration (mins)"
+        type="number"
+        value={lessonToEdit.duration}
+        onChange={(e) =>
+          setLessonToEdit((prev) => ({ ...prev, duration: e.target.value }))
+        }
+        fullWidth
+        margin="normal"
+      />
+      <TextField
+        label="Difficulty"
+        value={lessonToEdit.difficulty}
+        onChange={(e) =>
+          setLessonToEdit((prev) => ({ ...prev, difficulty: e.target.value }))
+        }
+        fullWidth
+        margin="normal"
+      />
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: "20px",
+        }}
+      >
+        <Button onClick={closeEditLessonModal} variant="outlined" color="secondary">
+          Cancel
+        </Button>
+        <Button onClick={handleEditLesson} variant="contained" color="primary">
+          Save Changes
+        </Button>
+      </Box>
+    </Box>
+  </Modal>
+)}
 
 
 
@@ -1001,6 +1101,8 @@ const createTask = async () => {
     </Card>
   ))}
 </Box>
+
+
 
 {/* Modal for Editing Module */}
 <Modal open={isEditModalOpen} onClose={() => setIsEditModalOpen(false)}>

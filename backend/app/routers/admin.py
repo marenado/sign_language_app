@@ -217,7 +217,6 @@ async def add_language(language: LanguageCreate, db: AsyncSession = Depends(get_
 
 
 
-# Lesson-related endpoints
 @router.post("/lessons", response_model=LessonResponse)
 async def create_lesson(
     lesson: LessonCreate,
@@ -225,7 +224,7 @@ async def create_lesson(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Create a new lesson
+    Create a new lesson. Automatically sets version to 1 if not provided.
     """
     # Validate the module ID
     result = await db.execute(select(Module).where(Module.module_id == lesson.module_id))
@@ -233,41 +232,57 @@ async def create_lesson(
     if not module:
         raise HTTPException(status_code=400, detail="Invalid module ID.")
 
+    # Set default version to 1 if not provided
+    version = lesson.version if lesson.version is not None else 1
+
+    # Create a new lesson
+    new_lesson = Lesson(
+        title=lesson.title,
+        description=lesson.description,
+        module_id=lesson.module_id,
+        version=version,
+        duration=lesson.duration,
+        difficulty=lesson.difficulty,
+    )
+
     try:
-        new_lesson = Lesson(
-            title=lesson.title,
-            description=lesson.description,
-            module_id=lesson.module_id,
-            version=lesson.version,
-            duration=lesson.duration,
-            difficulty=lesson.difficulty,
-        )
         db.add(new_lesson)
         await db.commit()
         await db.refresh(new_lesson)
         logging.info(f"Lesson {lesson.title} created successfully.")
         return new_lesson
     except Exception as e:
+        await db.rollback()
         logging.error(f"Error creating lesson: {e}")
         raise HTTPException(status_code=500, detail="Failed to create lesson")
+
 
 
 @router.get("/lessons", response_model=List[LessonResponse])
 async def get_lessons(
     module_id: int,
+    limit: int = 10,
+    offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
     """
-    Fetch all lessons for a given module
+    Fetch lessons for a specific module with optional pagination.
     """
     try:
-        result = await db.execute(select(Lesson).where(Lesson.module_id == module_id))
+        result = await db.execute(
+            select(Lesson)
+            .where(Lesson.module_id == module_id)
+            .offset(offset)
+            .limit(limit)
+        )
         lessons = result.scalars().all()
-        logging.info(f"Lessons fetched for module {module_id}: {lessons}")
+        if not lessons:
+            raise HTTPException(status_code=404, detail="No lessons found.")
         return lessons
     except Exception as e:
-        logging.error(f"Error fetching lessons: {e}")
+        await db.rollback()
+        logging.error(f"Error fetching lessons for module {module_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch lessons")
 
 
@@ -279,28 +294,47 @@ async def update_lesson(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Update a lesson by ID
+    Update a lesson by ID.
+    Automatically increments the lesson version.
+    Allows partial updates for other fields.
     """
+    # Fetch the existing lesson
+    result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
+    lesson = result.scalar()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+
     try:
-        result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
-        lesson = result.scalar()
-        if not lesson:
-            raise HTTPException(status_code=404, detail="Lesson not found.")
+        # Update only the fields provided in the request
+        if updated_data.title:
+            lesson.title = updated_data.title
+        if updated_data.description:
+            lesson.description = updated_data.description
+        if updated_data.module_id:
+            # Validate the new module ID if provided
+            module_result = await db.execute(select(Module).where(Module.module_id == updated_data.module_id))
+            module = module_result.scalar()
+            if not module:
+                raise HTTPException(status_code=400, detail="Invalid module ID.")
+            lesson.module_id = updated_data.module_id
+        if updated_data.duration:
+            lesson.duration = updated_data.duration
+        if updated_data.difficulty:
+            lesson.difficulty = updated_data.difficulty
 
-        # Update lesson fields
-        lesson.title = updated_data.title or lesson.title
-        lesson.description = updated_data.description or lesson.description
-        lesson.duration = updated_data.duration or lesson.duration
-        lesson.difficulty = updated_data.difficulty or lesson.difficulty
-        lesson.version += 1  # Increment version
+        # Automatically increment the version
+        lesson.version += 1
 
+        # Commit the updates to the database
         await db.commit()
         await db.refresh(lesson)
         logging.info(f"Lesson {lesson_id} updated successfully.")
         return lesson
     except Exception as e:
+        await db.rollback()
         logging.error(f"Error updating lesson: {e}")
         raise HTTPException(status_code=500, detail="Failed to update lesson")
+
 
 
 @router.delete("/lessons/{lesson_id}", status_code=204)
@@ -310,22 +344,21 @@ async def delete_lesson(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Delete a lesson by ID
+    Delete a lesson by ID.
     """
-    try:
-        result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
-        lesson = result.scalar()
-        if not lesson:
-            raise HTTPException(status_code=404, detail="Lesson not found.")
+    result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
+    lesson = result.scalar()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
 
+    try:
         await db.delete(lesson)
         await db.commit()
-        logging.info(f"Lesson {lesson_id} deleted successfully.")
         return {"message": "Lesson deleted successfully."}
     except Exception as e:
+        await db.rollback()
         logging.error(f"Error deleting lesson: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete lesson")
-    
 
     
 @router.post("/tasks", response_model=TaskResponse)
