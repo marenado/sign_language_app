@@ -3,6 +3,7 @@ import axios from "axios";
 import Sidebar from "./Sidebar";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import Tooltip from "@mui/material/Tooltip";
 // import { FormControl, InputLabel, NativeSelect } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
@@ -637,56 +638,127 @@ const createTask = async () => {
         </Box>
         <Box sx={{ display: "flex", gap: "10px" }}>
           {/* Add Lesson Button */}
-          <Fab
-            size="small"
-            onClick={() => {
-              setSelectedModule(module);
-              setIsLessonModalOpen(true);
-            }}
-            sx={{
-              backgroundColor: "#5b21b6",
-              color: "#fff",
-              "&:hover": {
-                backgroundColor: "#4a148c",
-              },
-            }}
-          >
-            <AddIcon />
-          </Fab>
+{/* Add Lesson Button */}
+<Tooltip title="Add a new lesson" arrow>
+    <Fab
+      size="small"
+      onClick={() => {
+        setSelectedModule(module); // Select the current module
+        setIsLessonModalOpen(true); // Open the modal
+      }}
+      sx={{
+        backgroundColor: "#5b21b6",
+        color: "#fff",
+        "&:hover": {
+          backgroundColor: "#4a148c",
+        },
+      }}
+    >
+      <AddIcon />
+    </Fab>
+  </Tooltip>
+{/* Edit Module Button */}
+<Tooltip title="Edit this module" arrow>
+  <Fab
+    size="small"
+    onClick={() => {
+      setSelectedModule(module);
+      setIsEditModalOpen(true);
+    }}
+    sx={{
+      backgroundColor: "#5b21b6",
+      color: "#fff",
+      "&:hover": {
+        backgroundColor: "#4a148c",
+      },
+    }}
+  >
+    <EditIcon />
+  </Fab>
+</Tooltip>
 
-          {/* Edit Module Button */}
-          <Fab
-            size="small"
-            onClick={() => {
-              setSelectedModule(module);
-              setIsEditModalOpen(true);
-            }}
-            sx={{
-              backgroundColor: "#5b21b6",
-              color: "#fff",
-              "&:hover": {
-                backgroundColor: "#4a148c",
-              },
-            }}
-          >
-            <EditIcon />
-          </Fab>
+{/* Delete Module Button */}
+<Tooltip title="Delete this module" arrow>
+  <Fab
+    size="small"
+    onClick={() => openDeleteDialog(module)}
+    sx={{
+      backgroundColor: "#5b21b6",
+      color: "#fff",
+      "&:hover": {
+        backgroundColor: "#4a148c",
+      },
+    }}
+  >
+    <DeleteIcon />
+  </Fab>
+</Tooltip>
 
-          {/* Delete Module Button */}
-          <Fab
-            size="small"
-            onClick={() => openDeleteDialog(module)}
-            sx={{
-              backgroundColor: "#5b21b6",
-              color: "#fff",
-              "&:hover": {
-                backgroundColor: "#4a148c",
-              },
-            }}
-          >
-            <DeleteIcon />
-          </Fab>
         </Box>
+
+       {/* Modal for Adding a Lesson */}
+<Modal open={isLessonModalOpen} onClose={closeLessonModal}>
+  <Box
+    sx={{
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "400px",
+      backgroundColor: "white",
+      padding: "20px",
+      borderRadius: "10px",
+      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+    }}
+  >
+    <Typography variant="h6" sx={{ marginBottom: "20px", textAlign: "center" }}>
+      Add New Lesson
+    </Typography>
+    <TextField
+      fullWidth
+      label="Title"
+      value={newLesson.title}
+      onChange={(e) => setNewLesson({ ...newLesson, title: e.target.value })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <TextField
+      fullWidth
+      label="Description"
+      multiline
+      rows={3}
+      value={newLesson.description}
+      onChange={(e) => setNewLesson({ ...newLesson, description: e.target.value })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <TextField
+      fullWidth
+      label="Difficulty"
+      value={newLesson.difficulty}
+      onChange={(e) => setNewLesson({ ...newLesson, difficulty: e.target.value })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <TextField
+      fullWidth
+      label="Duration (minutes)"
+      type="number"
+      value={newLesson.duration || ""}
+      onChange={(e) => setNewLesson({ ...newLesson, duration: Number(e.target.value) })}
+      sx={{ marginBottom: "15px" }}
+    />
+    <Button
+      variant="contained"
+      //color="primary"
+      onClick={createLesson} // Call the function to create a lesson
+      sx={{ display: "block",backgroundColor: "#5b21b6",
+        color: "#fff",
+        "&:hover": {
+          backgroundColor: "#4a148c",
+        }, marginLeft: "auto", marginRight: "auto" }}
+    >
+      Save Lesson
+    </Button>
+  </Box>
+</Modal>
       </Box>
 
 
@@ -707,22 +779,6 @@ const createTask = async () => {
     position: "relative", // For positioning the Fab button
   }}
 >
-  {/* Add Lesson Button */}
-  <Fab
-    size="medium"
-    sx={{
-      position: "absolute",
-      top: "-20px", // Adjust position relative to the lesson list
-      right: "10px",
-      backgroundColor: "#5b21b6",
-      color: "#fff",
-      zIndex: 1000, // Ensure it appears above other elements
-      "&:hover": { backgroundColor: "#4a148c" },
-    }}
-    onClick={() => setIsLessonModalOpen(true)} // Handle lesson modal opening
-  >
-    <AddIcon />
-  </Fab>
 
   {lessons[module.module_id]?.length > 0 ? (
     lessons[module.module_id].map((lesson) => (
@@ -784,65 +840,7 @@ const createTask = async () => {
 </Box>
 
 
-{/* Modal for Adding a Lesson */}
-<Modal open={isLessonModalOpen} onClose={closeLessonModal}>
-  <Box
-    sx={{
-      position: "absolute",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      width: "400px",
-      backgroundColor: "white",
-      padding: "20px",
-      borderRadius: "10px",
-      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
-    }}
-  >
-    <Typography variant="h6" sx={{ marginBottom: "20px", textAlign: "center" }}>
-      Add New Lesson
-    </Typography>
-    <TextField
-      fullWidth
-      label="Title"
-      value={newLesson.title}
-      onChange={(e) => setNewLesson({ ...newLesson, title: e.target.value })}
-      sx={{ marginBottom: "15px" }}
-    />
-    <TextField
-      fullWidth
-      label="Description"
-      multiline
-      rows={3}
-      value={newLesson.description}
-      onChange={(e) => setNewLesson({ ...newLesson, description: e.target.value })}
-      sx={{ marginBottom: "15px" }}
-    />
-    <TextField
-      fullWidth
-      label="Difficulty"
-      value={newLesson.difficulty}
-      onChange={(e) => setNewLesson({ ...newLesson, difficulty: e.target.value })}
-      sx={{ marginBottom: "15px" }}
-    />
-    <TextField
-      fullWidth
-      label="Duration (minutes)"
-      type="number"
-      value={newLesson.duration || ""}
-      onChange={(e) => setNewLesson({ ...newLesson, duration: Number(e.target.value) })}
-      sx={{ marginBottom: "15px" }}
-    />
-    <Button
-      variant="contained"
-      color="primary"
-      onClick={createLesson} // Call the function to create a lesson
-      sx={{ display: "block", marginLeft: "auto", marginRight: "auto" }}
-    >
-      Save Lesson
-    </Button>
-  </Box>
-</Modal>
+
 
 
 
