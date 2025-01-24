@@ -1,5 +1,10 @@
-body {
+/* Reset styles */
+body, html {
   margin: 0;
+  padding: 0;
+  width: 100%; /* Ensure full width */
+  height: 100%; /* Ensure full height */
+  overflow: hidden; /* Prevent scrolling */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -7,6 +12,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Ensure the root container takes full size */
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex; /* Flexbox for layout management */
+  flex-direction: column;
+}
+
+/* Code font styles */
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;

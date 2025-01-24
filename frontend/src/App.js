@@ -11,6 +11,7 @@ import Settings from "./components/Settings";
 import ModuleManagement from "./components/ModuleManagement";
 import { jwtDecode } from "jwt-decode";
 
+
 const Login = ({ setIsAdmin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -151,12 +152,15 @@ export default App;
 const Container = styled.div`
   display: flex;
   height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background-color: #1e133f;
   color: #fff;
 `;
 
 const LeftSection = styled.div`
   flex: 1;
+  height: 100%;
   padding: 50px;
   display: flex;
   flex-direction: column;
@@ -183,6 +187,7 @@ const RightSection = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
+  height: 100%; 
 `;
 
 const Form = styled.form`
@@ -267,9 +272,11 @@ const SignUpButton = styled.button`
     background-color: #4a316f;
     color: #fff;
   }
+    
 `;
 
 const Message = styled.p`
   color: red;
   margin-top: 15px;
 `;
+
