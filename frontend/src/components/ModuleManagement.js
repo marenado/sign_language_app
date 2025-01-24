@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import Sidebar from "./Sidebar";
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import Tooltip from "@mui/material/Tooltip";
+import '../index.css';
 import { Menu, MenuItem, IconButton } from "@mui/material";
 // import { FormControl, InputLabel, NativeSelect } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -43,6 +44,7 @@ const ModuleManagement = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedModule, setSelectedModule] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const menuShouldClose = useRef(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newLanguage, setNewLanguage] = useState({ code: "", name: "" });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -111,37 +113,46 @@ const closeDeleteDialog = () => {
 
 
 
-  const openMenu = (event, lessonId) => {
-    setMenuAnchor(event.currentTarget);
-    setActiveLessonId(lessonId); // Track which lesson menu is open
-  };
+const openMenu = (event, lessonId) => {
+  menuShouldClose.current = true; // Allow menu to close by default
+  setMenuAnchor(event.currentTarget);
+  setActiveLessonId(lessonId);
+};
 
-  const closeMenu = () => {
-    setMenuAnchor(null);
-    setActiveLessonId(null);
-  };
+const closeMenu = () => {
+  if (!menuShouldClose.current) {
+    console.log("Preventing menu close.");
+    return;
+  }
+  setMenuAnchor(null);
+  setActiveLessonId(null);
+};
 
 
-  const openEditLessonModal = (lesson) => {
-    if (!lesson || !lesson.lesson_id) {
-      console.error("Invalid lesson object:", lesson);
-      return;
-    }
-    console.log("Opening edit modal for lesson ID:", lesson.lesson_id); // Debug log
-    setActiveLessonId(lesson.lesson_id); // Set the correct lesson ID
-    setLessonToEdit(lesson); // Populate modal with lesson details
-    setEditLessonModalOpen(true); // Open the modal
-  };
+
+const openEditLessonModal = (lesson) => {
+  console.log("Opening edit modal for lesson:", lesson);
+  setActiveLessonId(lesson.lesson_id); // Set active ID for the lesson being edited
+  setLessonToEdit({
+    title: lesson.title || "",
+    description: lesson.description || "",
+    duration: lesson.duration || null,
+    difficulty: lesson.difficulty || "",
+  });
+  setEditLessonModalOpen(true);
+};
+
   
-  const closeEditLessonModal = () => {
-    setEditLessonModalOpen(false);
-    setLessonToEdit({
-      title: "",
-      description: "",
-      duration: null,
-      difficulty: "",
-    });
-  };
+  
+const closeEditLessonModal = () => {
+  console.log("Closing edit lesson modal.");
+  setEditLessonModalOpen(false);
+  setActiveLessonId(null); // Reset only after edit is done
+};
+
+  
+  
+  
 
   const handleDeleteLesson = async () => {
     if (!activeLessonId) {
@@ -149,22 +160,47 @@ const closeDeleteDialog = () => {
       return;
     }
   
-    try {
-      await axios.delete(`${BASE_URL}/lessons/${activeLessonId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
-      console.log(`Lesson ${activeLessonId} deleted successfully.`);
-      closeMenu();
-      if (selectedModule) {
-        await fetchLessons(selectedModule.module_id); // Refresh lessons
-      }
-    } catch (error) {
-      console.error(
-        `Error deleting lesson ${activeLessonId}:`,
-        error.response?.data || error.message
-      );
+    console.log(`Attempting to delete lesson with ID: ${activeLessonId}`); // Debug log
+  
+    // Add the "removing" class to trigger the fade-out animation
+    const lessonElement = document.getElementById(`lesson-${activeLessonId}`);
+    if (lessonElement) {
+      lessonElement.classList.add("removing"); // Add the removing class
     }
+  
+    // Wait for the animation to complete (300ms in this case)
+    setTimeout(async () => {
+      try {
+        // Send the delete request
+        await axios.delete(`${BASE_URL}/admin/lessons/${activeLessonId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+        });
+        console.log(`Lesson ${activeLessonId} deleted successfully.`);
+  
+        // Update the local state to remove the deleted lesson
+        setLessons((prevLessons) => {
+          if (!selectedModule || !prevLessons[selectedModule.module_id]) return prevLessons;
+  
+          const updatedModuleLessons = prevLessons[selectedModule.module_id].filter(
+            (lesson) => lesson.lesson_id !== activeLessonId
+          );
+  
+          return {
+            ...prevLessons,
+            [selectedModule.module_id]: updatedModuleLessons,
+          };
+        });
+  
+        closeMenu(); // Close any related menus after deletion
+      } catch (error) {
+        console.error(
+          `Error deleting lesson ${activeLessonId}:`,
+          error.response?.data || error.message
+        );
+      }
+    }, 300); // Match the animation duration
   };
+  
   
   
 
@@ -174,35 +210,60 @@ const closeDeleteDialog = () => {
       return;
     }
   
-    if (!lessonToEdit.title || !lessonToEdit.description) {
-      console.error("Title and description are required.");
+    // Fallback to find the module if `selectedModule` is null
+    const currentModule =
+      selectedModule ||
+      modules.find((module) =>
+        lessons[module.module_id]?.some(
+          (lesson) => lesson.lesson_id === activeLessonId
+        )
+      );
+  
+    if (!currentModule || !currentModule.module_id) {
+      console.error("No module selected or module_id is missing.");
       return;
     }
   
-    console.log("Updating lesson with ID:", activeLessonId); // Debug log
+    const payload = {
+      title: lessonToEdit.title || undefined,
+      description: lessonToEdit.description || undefined,
+      duration: lessonToEdit.duration || undefined,
+      difficulty: lessonToEdit.difficulty || undefined,
+    };
   
     try {
-      await axios.put(
-        `${BASE_URL}/lessons/${activeLessonId}`,
-        { ...lessonToEdit },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` } }
+      const response = await axios.put(
+        `${BASE_URL}/admin/lessons/${activeLessonId}`,
+        payload,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+        }
       );
-      console.log(`Lesson ${activeLessonId} updated successfully.`);
+      console.log("Lesson updated successfully:", response.data);
+  
+      // Update lessons state
+      setLessons((prevLessons) => {
+        const updatedLessons = prevLessons[currentModule.module_id]?.map(
+          (lesson) =>
+            lesson.lesson_id === activeLessonId
+              ? { ...lesson, ...response.data }
+              : lesson
+        );
+        return { ...prevLessons, [currentModule.module_id]: updatedLessons };
+      });
+  
       closeEditLessonModal();
-      if (selectedModule) {
-        await fetchLessons(selectedModule.module_id); // Refresh lessons
-      }
     } catch (error) {
-      console.error(
-        `Error updating lesson ${activeLessonId}:`,
-        error.response?.data || error.message
-      );
+      console.error("Error updating lesson:", error.response?.data || error.message);
     }
   };
   
   
   
-
+  
+  
+  
+  
 
 const handleDeleteModule = async () => {
   if (!moduleToDelete) return;
@@ -379,6 +440,9 @@ const searchVideos = async () => {
       console.error("Module ID is required to fetch lessons.");
       return;
     }
+  
+    console.log(`Fetching lessons for module ID: ${moduleId}`); // Debug log
+  
     try {
       const response = await axios.get(`${BASE_URL}/admin/lessons?module_id=${moduleId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
@@ -392,7 +456,6 @@ const searchVideos = async () => {
       console.error(`Error fetching lessons for module ${moduleId}:`, error.response?.data || error.message);
     }
   };
-  
   
 
   const fetchTasks = async (lessonId) => {
@@ -508,6 +571,15 @@ const createTask = async () => {
     fetchModules();
   }, [selectedLanguage, isAuthenticated, fetchModules]);
 
+
+  useEffect(() => {
+    console.log("activeLessonId changed:", activeLessonId);
+  }, [activeLessonId]);
+
+  useEffect(() => {
+    console.log("selectedModule changed:", selectedModule);
+  }, [selectedModule]);
+  
   if (!isAuthenticated) {
     return <Typography>Loading...</Typography>;
   }
@@ -893,12 +965,18 @@ const createTask = async () => {
     borderRadius: "10px",
     boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)", // Improved shadow for better contrast
     position: "relative", // For positioning the Fab button
+    //boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)", // Improved shadow for better contrast
+    position: "relative", // For positioning the Fab button
+    gridAutoRows: "minmax(100px, auto)", // Automatically adjust row height
+    transition: "all 0.3s ease",
   }}
 >
   {lessons[module.module_id]?.length > 0 ? (
     lessons[module.module_id].map((lesson) => (
       <Card
         key={lesson.lesson_id}
+        id={`lesson-${lesson.lesson_id}`} 
+        className="lesson-card" 
         sx={{
           display: "flex",
           flexDirection: "column",
@@ -962,15 +1040,17 @@ const createTask = async () => {
               },
             }}
           >
-            <MenuItem
+            
+<MenuItem
   onClick={() => {
-    console.log("Edit Lesson clicked for ID:", lesson.lesson_id); // Debug log
+    menuShouldClose.current = false; // Prevent menu from closing
+    console.log("Edit Lesson clicked for ID:", lesson.lesson_id);
     openEditLessonModal(lesson);
-    closeMenu();
   }}
 >
   Edit Lesson
 </MenuItem>
+
 
             <MenuItem
   onClick={() => {
@@ -1087,9 +1167,21 @@ const createTask = async () => {
         <Button onClick={closeEditLessonModal} variant="outlined" color="secondary">
           Cancel
         </Button>
-        <Button onClick={handleEditLesson} variant="contained" color="primary">
-          Save Changes
-        </Button>
+        <Button
+  onClick={() => handleEditLesson(activeLessonId)}
+  variant="contained"
+  sx={{
+    backgroundColor: "#5b21b6",
+    color: "#fff",
+    "&:hover": { backgroundColor: "#4a148c" },
+  }}
+>
+  Save Changes
+</Button>
+
+
+
+
       </Box>
     </Box>
   </Modal>
@@ -1282,3 +1374,5 @@ const createTask = async () => {
 
 
 export default ModuleManagement;
+
+
