@@ -809,7 +809,9 @@ const createTask = async () => {
         boxShadow: "0 4px 8px rgba(91, 33, 182, 0.2)",
         marginBottom: "20px",
         backgroundColor: "#f3e8ff", // Subtle violet background
+        cursor: "pointer",
       }}
+      onClick={() => navigate(`/admin/lessons/${lesson.lesson_id}/tasks`)} 
     >
       {/* Module Header */}
       <Box
@@ -954,6 +956,7 @@ const createTask = async () => {
 
 
 {/* Lesson List */}
+{/* Lesson List */}
 <Box
   sx={{
     display: "grid",
@@ -988,10 +991,10 @@ const createTask = async () => {
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
           height: "200px",
           transition: "transform 0.2s, box-shadow 0.2s",
-          "&:hover": {
-            transform: "scale(1.05)",
-            boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
-          },
+          // "&:hover": {
+          //   transform: "scale(1.05)",
+          //   boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+          // },
           position: "relative",
         }}
       >

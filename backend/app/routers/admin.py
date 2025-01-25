@@ -4,10 +4,13 @@ from sqlalchemy.future import select
 from sqlalchemy.sql import text
 from app.utils.auth import require_admin, get_current_user
 from app.database import get_db
+from sqlalchemy.orm import selectinload
 from app.models.user import User
 from app.models.module import Module
 from app.models.language import Language
+from sqlalchemy import delete
 from app.models.task import Task
+from app.models.task_video import TaskVideo
 from app.models.video_reference import VideoReference
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.schemas.module import ModuleCreate, ModuleResponse
@@ -17,6 +20,8 @@ from typing import Optional, List
 from app.schemas.lesson import LessonCreate, LessonResponse
 from app.models.lesson import Lesson
 import logging
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload
 
 router = APIRouter(
     prefix="/admin",
@@ -368,7 +373,7 @@ async def create_task(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Create a new task, optionally linking it to a video.
+    Create a new task with associated videos.
     """
     # Validate lesson ID
     result = await db.execute(select(Lesson).where(Lesson.lesson_id == task.lesson_id))
@@ -376,13 +381,18 @@ async def create_task(
     if not lesson:
         raise HTTPException(status_code=400, detail="Invalid lesson ID.")
 
-    # Validate video ID (if provided)
-    if task.video_id:
-        video_result = await db.execute(select(VideoReference).where(VideoReference.video_id == task.video_id))
-        if not video_result.scalar():
-            raise HTTPException(status_code=400, detail="Invalid video ID.")
+    # Validate video IDs
+    if task.video_ids:
+        videos_result = await db.execute(
+            select(VideoReference).where(VideoReference.video_id.in_(task.video_ids))
+        )
+        valid_videos = videos_result.scalars().all()
+        valid_video_ids = {video.video_id for video in valid_videos}
+        if set(task.video_ids) != valid_video_ids:
+            raise HTTPException(status_code=400, detail="Invalid video IDs provided.")
 
     try:
+        # Create the new task
         new_task = Task(
             task_type=task.task_type,
             content=task.content,
@@ -390,13 +400,27 @@ async def create_task(
             lesson_id=task.lesson_id,
             version=task.version,
             points=task.points,
-            video_id=task.video_id,  # Optional
         )
         db.add(new_task)
         await db.commit()
         await db.refresh(new_task)
+
+        # Associate videos
+        for video_id in task.video_ids:
+            task_video = TaskVideo(task_id=new_task.task_id, video_id=video_id)
+            db.add(task_video)
+
+        await db.commit()
+        await db.refresh(new_task)
+
+        # Fetch the task with related videos
+        task_with_videos = await db.execute(
+            select(Task).options(selectinload(Task.videos)).where(Task.task_id == new_task.task_id)
+        )
+        task_with_videos = task_with_videos.scalar()
+
         logging.info(f"Task {new_task.task_id} created successfully.")
-        return new_task
+        return task_with_videos
     except Exception as e:
         logging.error(f"Error creating task: {e}")
         raise HTTPException(status_code=500, detail="Failed to create task")
@@ -411,37 +435,42 @@ async def get_tasks(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Fetch all tasks for a specific lesson, including linked video details.
+    Fetch all tasks for a specific lesson, including all linked videos.
     """
     try:
         result = await db.execute(
             select(Task, VideoReference)
-            .join(VideoReference, Task.video_id == VideoReference.video_id, isouter=True)
+            .join(TaskVideo, Task.task_id == TaskVideo.task_id)
+            .join(VideoReference, TaskVideo.video_id == VideoReference.video_id, isouter=True)
             .where(Task.lesson_id == lesson_id)
         )
-        tasks = result.fetchall()
-        return [
-            {
-                "task_id": task.task_id,
-                "task_type": task.task_type,
-                "content": task.content,
-                "correct_answer": task.correct_answer,
-                "lesson_id": task.lesson_id,
-                "version": task.version,
-                "points": task.points,
-                "video": {
-                    "video_id": video.video_id,
-                    "video_url": video.video_url,
-                    "gloss": video.gloss,
+
+        tasks = {}
+        for task, video in result:
+            if task.task_id not in tasks:
+                tasks[task.task_id] = {
+                    "task_id": task.task_id,
+                    "task_type": task.task_type,
+                    "content": task.content,
+                    "correct_answer": task.correct_answer,
+                    "lesson_id": task.lesson_id,
+                    "version": task.version,
+                    "points": task.points,
+                    "videos": [],
                 }
-                if video
-                else None,
-            }
-            for task, video in tasks
-        ]
+            if video:
+                tasks[task.task_id]["videos"].append(
+                    {
+                        "video_id": video.video_id,
+                        "video_url": video.video_url,
+                        "gloss": video.gloss,
+                    }
+                )
+        return list(tasks.values())
     except Exception as e:
         logging.error(f"Error fetching tasks: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch tasks")
+
 
     
 
@@ -454,11 +483,16 @@ async def update_task(
     current_admin: User = Depends(require_admin),
 ):
     """
-    Update a task by ID
+    Update a task by ID, including its associated videos.
     """
     try:
-        result = await db.execute(select(Task).where(Task.task_id == task_id))
-        task = result.scalar()
+        # Fetch the task with its associated videos
+        task_result = await db.execute(
+            select(Task)
+            .where(Task.task_id == task_id)
+            .options(joinedload(Task.videos))  # Eagerly load associated videos
+        )
+        task = task_result.scalar()
         if not task:
             raise HTTPException(status_code=404, detail="Task not found.")
 
@@ -469,15 +503,37 @@ async def update_task(
         task.version = updated_task.version or task.version
         task.points = updated_task.points or task.points
 
+        # Update associated videos if video_ids are provided
+        if updated_task.video_ids:
+            # Validate provided video IDs
+            valid_videos = await db.execute(
+                select(VideoReference).where(VideoReference.video_id.in_(updated_task.video_ids))
+            )
+            valid_video_ids = {video.video_id for video in valid_videos.scalars().all()}
+
+            if set(updated_task.video_ids) - valid_video_ids:
+                raise HTTPException(status_code=400, detail="Some video IDs are invalid.")
+
+            # Clear existing video associations
+            await db.execute(delete(TaskVideo).where(TaskVideo.task_id == task_id))
+
+            # Add new video associations
+            for video_id in updated_task.video_ids:
+                task_video = TaskVideo(task_id=task_id, video_id=video_id)
+                db.add(task_video)
+
+        # Commit the updates and refresh the task
         await db.commit()
         await db.refresh(task)
-        logging.info(f"Task {task_id} updated successfully.")
+
+        # Return the updated task with videos
         return task
+    except SQLAlchemyError as e:
+        logging.error(f"Database error while updating task: {e}")
+        raise HTTPException(status_code=500, detail="Database error occurred.")
     except Exception as e:
         logging.error(f"Error updating task: {e}")
         raise HTTPException(status_code=500, detail="Failed to update task")
-
-
 
 
 
@@ -506,7 +562,6 @@ async def delete_task(
     
 
 
-
 @router.get("/tasks/video/{video_id}", response_model=List[TaskResponse])
 async def get_tasks_by_video(
     video_id: str,
@@ -517,13 +572,18 @@ async def get_tasks_by_video(
     Fetch all tasks linked to a specific video.
     """
     try:
-        result = await db.execute(select(Task).where(Task.video_id == video_id))
-        tasks = result.scalars().all()
+        # Fetch tasks associated with the given video_id
+        result = await db.execute(
+            select(Task)
+            .join(Task.videos)  # Join the videos relationship
+            .where(VideoReference.video_id == video_id)
+            .options(joinedload(Task.videos))  # Eager load videos relationship
+        )
+        tasks = result.scalars().unique().all()  # Ensure uniqueness
         return tasks
     except Exception as e:
         logging.error(f"Error fetching tasks by video: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch tasks by video")
-
 
 @router.get("/videos", response_model=List[VideoReferenceResponse])
 async def search_videos(

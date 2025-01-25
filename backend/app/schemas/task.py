@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Any
+from app.schemas.video_reference import VideoReferenceResponse
+from typing import Any, List
 
 class TaskBase(BaseModel):
     task_type: str
@@ -10,13 +11,19 @@ class TaskBase(BaseModel):
 
 class TaskCreate(TaskBase):
     lesson_id: int
+    video_ids: List[str]  # New field for multiple video IDs
 
 class TaskUpdate(TaskBase):
-    pass
+    video_ids: List[str] = []  # Optional field for updating associated videos
 
-class TaskResponse(TaskBase):
+class TaskResponse(BaseModel):
     task_id: int
-    lesson_id: int
+    task_type: str
+    content: dict
+    correct_answer: dict
+    version: int
+    points: int
+    videos: List[VideoReferenceResponse]  # Include associated videos in the response
 
     class Config:
         orm_mode = True

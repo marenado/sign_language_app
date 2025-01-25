@@ -1,6 +1,6 @@
+from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey
 from app.database import Base
-
-from sqlalchemy import Column, Integer, String, JSON, ForeignKey, Text
 
 class Task(Base):
     __tablename__ = "task"
@@ -12,5 +12,10 @@ class Task(Base):
     lesson_id = Column(Integer, ForeignKey("lesson.lesson_id"), nullable=False)
     version = Column(Integer, nullable=False)
     points = Column(Integer, nullable=False)
-    video_id = Column(String, ForeignKey("video_reference.video_id"), nullable=True)
 
+    # Define many-to-many relationship with VideoReference
+    videos = relationship(
+        "VideoReference",
+        secondary="task_video",  # Association table
+        back_populates="tasks"
+    )

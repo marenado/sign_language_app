@@ -1,3 +1,4 @@
+from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer, String, JSON
 from app.database import Base
 
@@ -9,3 +10,10 @@ class VideoReference(Base):
     signer_id = Column(Integer, nullable=True)  # Optional signer ID
     video_metadata = Column(JSON, nullable=True)  # Additional metadata like bbox, fps, etc.
     video_url = Column(String, nullable=False)  # S3 URL of the video
+
+    # Define many-to-many relationship with Task
+    tasks = relationship(
+        "Task",
+        secondary="task_video",  # Association table
+        back_populates="videos"
+    )
