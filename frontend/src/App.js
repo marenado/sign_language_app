@@ -6,7 +6,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-route
 import SignUp from "./components/SignUp";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
-import TaskCreation from "./components/TaskCreation";
+// import TaskCreation from "./components/TaskCreation";
 import Settings from "./components/Settings";
 import ModuleManagement from "./components/ModuleManagement";
 import { jwtDecode } from "jwt-decode";
@@ -136,7 +136,7 @@ const App = () => {
 
 
         <Route path="/admin/lessons/:lessonId/tasks" element={<TaskList />} />
-        <Route path="/admin/lessons/:lessonId/tasks/new" element={<TaskCreation />} />
+        {/* <Route path="/admin/lessons/:lessonId/tasks/new" element={<TaskCreation />} /> */}
 
       </Routes>
     </Router>

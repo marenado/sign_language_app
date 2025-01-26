@@ -811,7 +811,7 @@ const createTask = async () => {
         backgroundColor: "#f3e8ff", // Subtle violet background
         cursor: "pointer",
       }}
-      onClick={() => navigate(`/admin/lessons/${lesson.lesson_id}/tasks`)} 
+      // onClick={() => navigate(`/admin/lessons/${lessons.lesson_id}/tasks`)} 
     >
       {/* Module Header */}
       <Box
@@ -956,7 +956,6 @@ const createTask = async () => {
 
 
 {/* Lesson List */}
-{/* Lesson List */}
 <Box
   sx={{
     display: "grid",
@@ -968,8 +967,6 @@ const createTask = async () => {
     borderRadius: "10px",
     boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)", // Improved shadow for better contrast
     position: "relative", // For positioning the Fab button
-    //boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)", // Improved shadow for better contrast
-    position: "relative", // For positioning the Fab button
     gridAutoRows: "minmax(100px, auto)", // Automatically adjust row height
     transition: "all 0.3s ease",
   }}
@@ -977,9 +974,9 @@ const createTask = async () => {
   {lessons[module.module_id]?.length > 0 ? (
     lessons[module.module_id].map((lesson) => (
       <Card
-        key={lesson.lesson_id}
-        id={`lesson-${lesson.lesson_id}`} 
-        className="lesson-card" 
+        key={lesson.lesson_id} // `lesson` is defined here as part of the map iteration
+        id={`lesson-${lesson.lesson_id}`}
+        className="lesson-card"
         sx={{
           display: "flex",
           flexDirection: "column",
@@ -991,12 +988,9 @@ const createTask = async () => {
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
           height: "200px",
           transition: "transform 0.2s, box-shadow 0.2s",
-          // "&:hover": {
-          //   transform: "scale(1.05)",
-          //   boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
-          // },
-          position: "relative",
+          cursor: "pointer", // Add cursor pointer for clarity
         }}
+        onClick={() => navigate(`/admin/lessons/${lesson.lesson_id}/tasks`)} // Correctly uses `lesson`
       >
         {/* Header Section */}
         <Box
@@ -1021,7 +1015,10 @@ const createTask = async () => {
           </Typography>
           <IconButton
             aria-label="settings"
-            onClick={(event) => openMenu(event, lesson.lesson_id)}
+            onClick={(event) => {
+              event.stopPropagation(); // Prevent card click
+              openMenu(event, lesson.lesson_id);
+            }}
             sx={{
               color: "#4a148c",
               "&:hover": { color: "#5b21b6" },
@@ -1029,46 +1026,7 @@ const createTask = async () => {
           >
             <MoreVertIcon />
           </IconButton>
-
-          {/* Menu */}
-          <Menu
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor) && activeLessonId === lesson.lesson_id}
-            onClose={closeMenu}
-            sx={{
-              "& .MuiPaper-root": {
-                backgroundColor: "#ffffff",
-                borderRadius: "10px",
-                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-              },
-            }}
-          >
-            
-<MenuItem
-  onClick={() => {
-    menuShouldClose.current = false; // Prevent menu from closing
-    console.log("Edit Lesson clicked for ID:", lesson.lesson_id);
-    openEditLessonModal(lesson);
-  }}
->
-  Edit Lesson
-</MenuItem>
-
-
-            <MenuItem
-  onClick={() => {
-    setActiveLessonId(lesson.lesson_id); // Set the correct lesson ID
-    handleDeleteLesson(); // Trigger delete function
-    closeMenu();
-  }}
->
-  Delete Lesson
-</MenuItem>
-
-          </Menu>
         </Box>
-
-        {/* Description */}
         <Typography
           variant="body2"
           sx={{
@@ -1078,14 +1036,12 @@ const createTask = async () => {
             overflow: "hidden",
             textOverflow: "ellipsis",
             display: "-webkit-box",
-            WebkitLineClamp: 2, // Limit to 2 lines
+            WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
           }}
         >
           {lesson.description || "No description provided."}
         </Typography>
-
-        {/* Footer Section */}
         <Typography
           variant="caption"
           sx={{
