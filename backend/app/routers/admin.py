@@ -438,16 +438,18 @@ async def get_tasks(
     Fetch all tasks for a specific lesson, including all linked videos.
     """
     try:
+        # Updated query with proper outer joins
         result = await db.execute(
             select(Task, VideoReference)
-            .join(TaskVideo, Task.task_id == TaskVideo.task_id)
-            .join(VideoReference, TaskVideo.video_id == VideoReference.video_id, isouter=True)
+            .join(TaskVideo, Task.task_id == TaskVideo.task_id, isouter=True)  # Allow tasks without videos
+            .join(VideoReference, TaskVideo.video_id == VideoReference.video_id, isouter=True)  # Allow tasks without videos in VideoReference
             .where(Task.lesson_id == lesson_id)
         )
 
         tasks = {}
         for task, video in result:
             if task.task_id not in tasks:
+                # Initialize task details
                 tasks[task.task_id] = {
                     "task_id": task.task_id,
                     "task_type": task.task_type,
@@ -458,6 +460,8 @@ async def get_tasks(
                     "points": task.points,
                     "videos": [],
                 }
+
+            # Add video details if they exist
             if video:
                 tasks[task.task_id]["videos"].append(
                     {
@@ -466,11 +470,15 @@ async def get_tasks(
                         "gloss": video.gloss,
                     }
                 )
+
+        # Debugging logs for task serialization
+        logging.debug(f"Serialized tasks: {list(tasks.values())}")
+
         return list(tasks.values())
+
     except Exception as e:
         logging.error(f"Error fetching tasks: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch tasks")
-
 
     
 
