@@ -8,6 +8,7 @@ import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
 // import TaskCreation from "./components/TaskCreation";
 import Settings from "./components/Settings";
+import EmailVerified from "./components/EmailVerified";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 import ModuleManagement from "./components/ModuleManagement";
@@ -156,6 +157,7 @@ const App = () => {
           path="/admin/lessons/:lessonId/tasks"
           element={isAdmin ? <TaskList /> : <div>Access Denied</div>}
         />
+        <Route path="/verify-email" element={<EmailVerified />} />
 
 <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
 <Route path="/reset-password" element={<ResetPassword />} /> {/* New route */}

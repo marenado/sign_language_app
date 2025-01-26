@@ -14,23 +14,28 @@ const SignUp = () => {
   const handleSignUp = async (e) => {
     e.preventDefault();
 
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters long.");
+      return;
+    }
+
     try {
       const response = await axios.post("http://127.0.0.1:8000/auth/signup", {
         email,
         username,
         password,
       });
-      setMessage("Account created successfully! Redirecting...");
-      console.log(response.data);
 
-      // Redirect to the login page
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
-    } catch (error) {
+      // Show success message
       setMessage(
-        error.response?.data?.detail || "An error occurred. Please try again."
+        "Account created successfully! Please check your email for the verification link."
       );
+    } catch (error) {
+      if (error.response && error.response.status === 400) {
+        setMessage(error.response.data.detail); // Use the detailed backend error
+      } else {
+        setMessage("An error occurred. Please try again.");
+      }
     }
   };
 
@@ -67,8 +72,6 @@ const SignUp = () => {
 };
 
 export default SignUp;
-
-// Styled Components remain unchanged
 
 // Styled Components
 const Container = styled.div`
@@ -120,5 +123,5 @@ const Button = styled.button`
 
 const Message = styled.p`
   margin-top: 10px;
-  color: red;
+  color: ${(props) => (props.success ? "green" : "red")};
 `;

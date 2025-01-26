@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+from fastapi.responses import HTMLResponse, RedirectResponse
 from app.models.user import User
+from sqlalchemy.exc import IntegrityError
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
 from app.schemas.auth import LoginRequest, TokenResponse, SignupRequest
 from app.utils.auth import verify_password, create_access_token, hash_password
@@ -13,6 +15,8 @@ from authlib.integrations.starlette_client import OAuth
 from dotenv import load_dotenv
 import logging
 from app.utils.auth import validate_password
+from pydantic import ValidationError
+
 
 load_dotenv()
 
@@ -94,75 +98,63 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         logging.error(f"Error during Google callback: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred")
 
-# User Registration
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
     try:
-        result = await db.execute(select(User).where(User.email == user_data.email))
-        if result.scalar_one_or_none():
+        # Check if the email or username already exists
+        email_exists = await db.execute(select(User).where(User.email == user_data.email))
+        if email_exists.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Email already exists")
 
+        username_exists = await db.execute(select(User).where(User.username == user_data.username))
+        if username_exists.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Username already exists")
+
+        # Hash the password and create the user
         hashed_password = hash_password(user_data.password)
-        new_user = User(username=user_data.username, email=user_data.email, password=hashed_password, is_verified=False)
+        new_user = User(
+            username=user_data.username,
+            email=user_data.email,
+            password=hashed_password,
+            is_verified=False,
+        )
         db.add(new_user)
         await db.commit()
 
+        # Generate an email verification token
         token = serializer.dumps(user_data.email, salt="email-verification")
         verification_link = f"http://127.0.0.1:8000/auth/verify-email?token={token}"
 
+        # Send the verification email
         message = MessageSchema(
             subject="Verify your email",
             recipients=[user_data.email],
-            body=f"Click the link to verify your email: {verification_link}",
+            body=f"""
+                <html>
+                    <body>
+                        <p>Hi {user_data.username},</p>
+                        <p>Thank you for signing up. Click the link below to verify your email address:</p>
+                        <a href="{verification_link}">Verify Email</a>
+                        <p>If you did not create this account, you can safely ignore this email.</p>
+                    </body>
+                </html>
+            """,
             subtype="html",
         )
         fm = FastMail(conf)
         await fm.send_message(message)
 
         return {"message": "Account created! Please verify your email."}
+    except HTTPException as e:
+        # Re-raise HTTPExceptions with specific error messages
+        raise e
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="An account with this email or username already exists.")
     except Exception as e:
         await db.rollback()
         logging.error(f"Error during user creation: {str(e)}")
-        raise HTTPException(status_code=500, detail="An error occurred during signup")
-    finally:
-        await db.close()
-
-
-# Email Verification
-@router.get("/verify-email")
-async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
-    try:
-        email = serializer.loads(token, salt="email-verification", max_age=3600)
-    except SignatureExpired:
-        raise HTTPException(status_code=400, detail="Verification link expired")
-
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.is_verified = True
-    await db.commit()
-
-    return {"message": "Email verified successfully"}
-
-@router.post("/login", response_model=TokenResponse)
-async def login_user(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
-    try:
-        result = await db.execute(select(User).where(User.email == credentials.email))
-        user = result.scalar()
-        if not user or not verify_password(credentials.password, user.password):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        if not user.is_verified:
-            raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
-
-        token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
-        return {"access_token": token, "token_type": "bearer"}
-    except Exception as e:
-        await db.rollback()
-        logging.error(f"Error during login: {str(e)}")
-        raise HTTPException(status_code=500, detail="An error occurred during login")
+        raise HTTPException(status_code=500, detail="An error occurred during signup.")
     finally:
         await db.close()
 
@@ -213,6 +205,55 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
 
 
 from fastapi import HTTPException
+
+
+@router.get("/verify-email", response_class=HTMLResponse)
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    """
+    Verify the user's email using the provided token.
+    """
+    try:
+        # Decode the token to get the email
+        email = serializer.loads(token, salt="email-verification", max_age=3600)
+
+        # Check if the user exists in the database
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # Mark the user as verified if not already verified
+        if user.is_verified:
+            return HTMLResponse("""
+                <html>
+                    <body>
+                        <h1>Email Already Verified</h1>
+                        <p>Your email has already been verified. <a href="http://127.0.0.1:3000/">Login here</a>.</p>
+                    </body>
+                </html>
+            """)
+
+        user.is_verified = True
+        await db.commit()
+
+        # Return an HTML confirmation page
+        return HTMLResponse("""
+            <html>
+                <body>
+                    <h1>Email Verified Successfully</h1>
+                    <p>Your email has been verified. <a href="http://127.0.0.1:3000/">Click here to login</a>.</p>
+                </body>
+            </html>
+        """)
+
+    except SignatureExpired:
+        raise HTTPException(status_code=400, detail="The verification link has expired.")
+    except Exception as e:
+        logging.error(f"Error during email verification: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred during email verification.")
+
+
 
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
@@ -266,3 +307,7 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
         logging.error(f"Unexpected error during password reset: {str(e)}")
         await db.rollback()
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+    
+
+
+    
