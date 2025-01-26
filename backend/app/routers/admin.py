@@ -6,8 +6,17 @@ from app.utils.auth import require_admin, get_current_user
 from app.database import get_db
 from sqlalchemy.orm import selectinload
 from app.models.user import User
+from app.utils.auth import (
+    verify_email_verification_token,
+    create_access_token,
+    create_email_verification_token,
+    hash_password,
+    verify_password,
+    get_current_user,
+)
 from app.models.module import Module
 from app.models.language import Language
+from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from sqlalchemy import delete
 from app.models.task import Task
 from app.models.task_video import TaskVideo
@@ -611,3 +620,41 @@ async def search_videos(
     except Exception as e:
         logging.error(f"Error searching videos: {e}")
         raise HTTPException(status_code=500, detail="Failed to search videos")
+
+
+
+@router.get("/settings", response_model=UserResponse)
+async def get_admin_settings(
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Retrieve admin's settings (profile information).
+    """
+    return current_admin
+
+
+@router.put("/settings", response_model=UserResponse)
+async def update_admin_settings(
+    user_update: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    """
+    Update admin's settings (username, email, password).
+    """
+    result = await db.execute(select(User).where(User.user_id == current_admin.user_id))
+    admin = result.scalar()
+    if not admin:
+        raise HTTPException(status_code=404, detail="Admin not found")
+
+    # Update admin's settings
+    if user_update.username:
+        admin.username = user_update.username
+    if user_update.email:
+        admin.email = user_update.email
+    if user_update.password:
+        admin.password = hash_password(user_update.password)
+
+    await db.commit()
+    await db.refresh(admin)
+    return admin

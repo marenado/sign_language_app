@@ -34,16 +34,26 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 # Create a JWT access token
+# def create_access_token(data: dict) -> str:
+#     """
+#     Create a JWT token with custom claims for user roles.
+#     """
+#     to_encode = data.copy()
+#     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+#     to_encode.update({"exp": expire})
+#     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+#     logger.info(f"Token created with payload: {to_encode}")
+#     return token
+
+
 def create_access_token(data: dict) -> str:
-    """
-    Create a JWT token with custom claims for user roles.
-    """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     logger.info(f"Token created with payload: {to_encode}")
     return token
+
 
 # Get the current authenticated user
 async def get_current_user(

@@ -13,7 +13,8 @@ const Sidebar = () => {
   const sidebarItems = [
     { name: "Dashboard", path: "/dashboard" }, // Include Dashboard only for non-admin users
     { name: "Dictionary", path: "/dictionary" },
-    { name: "Modules", path: isAdmin ? "/admin/modules" : "/modules" }, // Different path for admin modules
+    { name: "Modules", path: isAdmin ? "/admin/modules" : "/modules" },
+     // Different path for admin modules
   ].filter((item) => !(isAdmin && item.name === "Dashboard")); // Remove Dashboard if user is admin
 
   const handleLogout = () => {
@@ -89,28 +90,29 @@ const Sidebar = () => {
           }}
         ></Box>
 
-        <Box
-          onClick={() => navigate("/settings")}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            padding: "15px",
-            borderRadius: "10px",
-            textAlign: "center",
-            backgroundColor: location.pathname === "/settings" ? "#E6DFFF" : "transparent",
-            color: location.pathname === "/settings" ? "#4a148c" : "#fff",
-            fontWeight: location.pathname === "/settings" ? "bold" : "normal",
-            transition: "background-color 0.3s ease",
-            "&:hover": {
-              backgroundColor: "#E6DFFF",
-              color: "#4a148c",
-            },
-          }}
-        >
-          Settings
-        </Box>
+<Box
+  onClick={() => navigate(isAdmin ? "/admin/settings" : "/users/profile")}
+  sx={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    padding: "15px",
+    borderRadius: "10px",
+    textAlign: "center",
+    backgroundColor: location.pathname === (isAdmin ? "/admin/settings" : "/users/profile") ? "#E6DFFF" : "transparent",
+    color: location.pathname === (isAdmin ? "/admin/settings" : "/users/profile") ? "#4a148c" : "#fff",
+    fontWeight: location.pathname === (isAdmin ? "/admin/settings" : "/users/profile") ? "bold" : "normal",
+    transition: "background-color 0.3s ease",
+    "&:hover": {
+      backgroundColor: "#E6DFFF",
+      color: "#4a148c",
+    },
+  }}
+>
+  Settings
+</Box>
+
 
         <Box
           onClick={handleLogout}

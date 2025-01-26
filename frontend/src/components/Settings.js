@@ -10,31 +10,38 @@ const Settings = () => {
     email: "",
     password: "",
     avatar: "",
+    role: "", // Add role property to differentiate between admin and regular users
   });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   // Fetch user data on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem("authToken");
+        const isAdmin = localStorage.getItem("isAdmin") === "true"; // Check if the user is an admin
         if (!token) throw new Error("No authentication token found.");
-
-        const response = await axios.get("http://127.0.0.1:8000/users/profile", {
+  
+        const apiEndpoint = isAdmin
+          ? "http://127.0.0.1:8000/admin/settings" // Admin-specific settings
+          : "http://127.0.0.1:8000/users/profile"; // Regular user settings
+  
+        const response = await axios.get(apiEndpoint, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-
+  
         setUserData({
           username: response.data.username || "",
           email: response.data.email || "",
           avatar: response.data.avatar || "",
           password: "",
+          role: isAdmin ? "admin" : "user", // Set role dynamically
         });
       } catch (err) {
         setError(err.response?.data?.detail || "Failed to fetch user data.");
@@ -42,9 +49,10 @@ const Settings = () => {
         setLoading(false);
       }
     };
-
+  
     fetchData();
   }, []);
+  
 
   // Handle form submission for updating profile
   const handleSubmit = async (e) => {
@@ -52,23 +60,25 @@ const Settings = () => {
     try {
       const token = localStorage.getItem("authToken");
       if (!token) throw new Error("No authentication token found.");
-
-      const response = await axios.put(
-        "http://127.0.0.1:8000/users/update-profile",
-        {
-          username: userData.username,
-          email: userData.email,
-          password: userData.password,
-          avatar: userData.avatar, 
+  
+      const payload = {
+        username: userData.username,
+        email: userData.email,
+        password: userData.password,
+      };
+  
+      const apiEndpoint =
+        userData.role === "admin"
+          ? "http://127.0.0.1:8000/admin/settings"
+          : "http://127.0.0.1:8000/users/settings";
+  
+      await axios.put(apiEndpoint, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      
+      });
+  
+      alert("Profile updated successfully!");
       navigate("/dashboard");
     } catch (err) {
       const errorMessage =
@@ -76,6 +86,7 @@ const Settings = () => {
       alert(errorMessage);
     }
   };
+  
 
   // Handle avatar upload
   const handleAvatarChange = async (e) => {
@@ -102,10 +113,8 @@ const Settings = () => {
 
       setUserData((prevData) => ({
         ...prevData,
-        avatar: response.data.avatar, 
+        avatar: response.data.avatar,
       }));
-
-      
     } catch (err) {
       const errorMessage =
         err.response?.data?.detail || "Failed to update avatar.";
@@ -137,37 +146,42 @@ const Settings = () => {
           flexDirection: "column",
           alignItems: "center",
           overflowY: "auto",
-          
         }}
       >
         <Typography variant="h4" sx={{ fontWeight: "bold", marginBottom: "20px" }}>
           Profile
         </Typography>
-        <Avatar
-          sx={{
-            width: "120px",
-            height: "120px",
-            marginBottom: "20px",
-          }}
-          src={userData.avatar || "https://via.placeholder.com/120"}
-          alt="User Avatar"
-        />
-        <Button
-          variant="outlined"
-          component="label"
-          sx={{
-            marginBottom: "20px",
-            textTransform: "none",
-          }}
-        >
-          Change Avatar
-          <input
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={handleAvatarChange}
-          />
-        </Button>
+
+        {/* Conditionally Render Avatar for Non-Admin Users */}
+        {userData.role !== "admin" && (
+          <>
+            <Avatar
+              sx={{
+                width: "120px",
+                height: "120px",
+                marginBottom: "20px",
+              }}
+              src={userData.avatar || "https://via.placeholder.com/120"}
+              alt="User Avatar"
+            />
+            <Button
+              variant="outlined"
+              component="label"
+              sx={{
+                marginBottom: "20px",
+                textTransform: "none",
+              }}
+            >
+              Change Avatar
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handleAvatarChange}
+              />
+            </Button>
+          </>
+        )}
 
         <Box
           component="form"
@@ -213,7 +227,11 @@ const Settings = () => {
             <Button variant="outlined" onClick={() => window.location.reload()}>
               Cancel
             </Button>
-            <Button type="submit" variant="contained" sx={{ backgroundColor: "#5b21b6", color: "#fff" }}>
+            <Button
+              type="submit"
+              variant="contained"
+              sx={{ backgroundColor: "#5b21b6", color: "#fff" }}
+            >
               Save
             </Button>
           </Box>

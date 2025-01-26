@@ -12,7 +12,8 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { Avatar, Box, Card, CardContent, Typography } from "@mui/material";
+import { Avatar, Box, Button, Card, CardContent, Typography } from "@mui/material";
+import { useNavigate } from "react-router-dom"; // Import navigation hook
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -20,6 +21,7 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate(); // Initialize navigation
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
@@ -28,7 +30,7 @@ const Dashboard = () => {
       setLoading(false);
       return;
     }
-  
+
     const fetchData = async () => {
       try {
         const response = await axios.get("http://127.0.0.1:8000/users/dashboard", {
@@ -44,10 +46,9 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
-  
+
     fetchData();
   }, []);
-  
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -224,6 +225,22 @@ const Dashboard = () => {
                   </Typography>
                 </Box>
               </Box>
+
+              {/* Add Settings Button for Admin */}
+              {dashboardData.role === "admin" && (
+                <Button
+                  variant="contained"
+                  sx={{
+                    marginTop: "20px",
+                    backgroundColor: "#5b21b6",
+                    color: "#fff",
+                    "&:hover": { backgroundColor: "#4a148c" },
+                  }}
+                  onClick={() => navigate("/settings")}
+                >
+                  Go to Settings
+                </Button>
+              )}
             </Box>
           </Card>
         </Box>

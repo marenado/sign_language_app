@@ -294,3 +294,36 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Email verification failed: {str(e)}")
         raise HTTPException(status_code=400, detail="Email verification failed. Please try again.")
+    
+@router.get("/settings", response_model=UserResponse)
+async def get_user_settings(current_user: User = Depends(get_current_user)):
+    """
+    Retrieve current user's settings (profile information).
+    """
+    return current_user
+
+@router.put("/settings", response_model=UserResponse)
+async def update_user_settings(
+    user_update: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Update the current user's settings.
+    """
+    result = await db.execute(select(User).where(User.user_id == current_user.user_id))
+    user = result.scalar()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Update user data
+    if user_update.username:
+        user.username = user_update.username
+    if user_update.email:
+        user.email = user_update.email
+    if user_update.password:
+        user.password = hash_password(user_update.password)
+
+    await db.commit()
+    await db.refresh(user)
+    return user

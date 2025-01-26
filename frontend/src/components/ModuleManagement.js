@@ -314,7 +314,7 @@ const searchVideos = async () => {
       setIsAuthenticated(true);
     } else {
       setIsAuthenticated(false);
-      navigate("/login");
+      navigate("/");
     }
   }, [navigate]);
 

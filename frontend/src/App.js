@@ -40,6 +40,10 @@ const Login = ({ setIsAdmin }) => {
       console.error("Login error:", error.response?.data?.detail || error.message);
       setMessage("Invalid email or password. Please try again.");
     }
+
+    console.log("Email:", email);
+    console.log("Password:", password);
+
   };
 
   return (
@@ -112,36 +116,46 @@ const App = () => {
   }, []);
 
   if (isAdmin === null) {
-    
     return <div>Loading...</div>;
   }
 
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
+        {/* Login and Signup */}
+        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} /> {/* Pass setIsAdmin here */}
         <Route path="/signup" element={<SignUp />} />
+
+        {/* Admin Routes */}
         <Route
           path="/admin/modules"
           element={isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
         />
         <Route
+          path="/admin/settings"
+          element={isAdmin ? <Settings /> : <div>Access Denied</div>}
+        />
+
+        {/* User Routes */}
+        <Route
           path="/dashboard"
           element={!isAdmin ? <Dashboard /> : <div>Access Denied</div>}
         />
         <Route
-          path="/settings"
+          path="/users/profile"
           element={!isAdmin ? <Settings /> : <div>Access Denied</div>}
         />
 
-
-        <Route path="/admin/lessons/:lessonId/tasks" element={<TaskList />} />
-        {/* <Route path="/admin/lessons/:lessonId/tasks/new" element={<TaskCreation />} /> */}
-
+        {/* Shared Routes */}
+        <Route
+          path="/admin/lessons/:lessonId/tasks"
+          element={isAdmin ? <TaskList /> : <div>Access Denied</div>}
+        />
       </Routes>
     </Router>
   );
 };
+
 
 export default App;
 
