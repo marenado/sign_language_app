@@ -3,11 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.models.user import User
+import requests
 from sqlalchemy.exc import IntegrityError
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
 from app.schemas.auth import LoginRequest, TokenResponse, SignupRequest
 from app.utils.auth import verify_password, create_access_token, hash_password
 from sqlalchemy.future import select
+from app.schemas.auth import EmailValidationRequest
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
 import os
@@ -16,6 +18,8 @@ from dotenv import load_dotenv
 import logging
 from app.utils.auth import validate_password
 from pydantic import ValidationError
+import os
+
 
 
 load_dotenv()
@@ -26,6 +30,9 @@ router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
 )
+
+MAILBOXLAYER_API_KEY = os.getenv("MAILBOXLAYER_API_KEY")
+
 
 # Environment variable validation
 def validate_env_variables():
@@ -97,6 +104,16 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         await db.rollback()
         logging.error(f"Error during Google callback: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred")
+    
+
+@router.post("/login")
+async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == request.email))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(request.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token({"sub": user.email})
+    return {"access_token": token, "token_type": "bearer"}
 
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
@@ -255,6 +272,28 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
 
 
 
+
+@router.post("/validate-email")
+async def validate_email(request: EmailValidationRequest):
+    """
+    Validate the email address using the MailboxLayer API.
+    """
+    try:
+        email = request.email  # Extract the email from the JSON body
+        url = f"http://apilayer.net/api/check?access_key={MAILBOXLAYER_API_KEY}&email={email}"
+        response = requests.get(url)
+        data = response.json()
+
+        if data.get("format_valid") and data.get("smtp_check"):
+            return {"valid": True}
+        else:
+            return {"valid": False, "reason": data.get("did_you_mean", "Invalid email address.")}
+
+    except Exception as e:
+        logging.error(f"Error during email validation: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error occurred during email validation.")
+
+
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
     """
@@ -307,6 +346,23 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
         logging.error(f"Unexpected error during password reset: {str(e)}")
         await db.rollback()
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+    
+
+    
+
+@router.post("/check-email")
+async def check_email(email: str, db: AsyncSession = Depends(get_db)):
+    """
+    Check if the email is already registered in the database.
+    """
+    try:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        return {"exists": user is not None}
+    except Exception as e:
+        logging.error(f"Error checking email: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred while checking the email.")
+
     
 
 
