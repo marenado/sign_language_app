@@ -9,6 +9,8 @@ from app.models.user import User
 from app.database import get_db
 import os
 import logging
+import re
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -140,3 +142,23 @@ def verify_email_verification_token(token: str) -> str:
     except JWTError:
         logger.error("Invalid or expired email verification token.")
         raise HTTPException(status_code=400, detail="Invalid or expired token.")
+
+
+
+def validate_password(password: str):
+    """
+    Validate the password strength.
+    """
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+    if not re.search(r'[A-Z]', password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter.")
+    if not re.search(r'[a-z]', password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter.")
+    if not re.search(r'\d', password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one digit.")
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character.")
+    if re.search(r'\s', password):
+        raise HTTPException(status_code=400, detail="Password must not contain spaces.")
+    return True

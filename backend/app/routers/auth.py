@@ -12,6 +12,7 @@ import os
 from authlib.integrations.starlette_client import OAuth
 from dotenv import load_dotenv
 import logging
+from app.utils.auth import validate_password
 
 load_dotenv()
 
@@ -179,9 +180,9 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
         if not user:
             raise HTTPException(status_code=404, detail="User with this email does not exist.")
 
-        # Generate a secure token
-        token = serializer.dumps(request.email, salt="password-reset")
-        reset_link = f"http://127.0.0.1:3000/reset-password?token={token}"
+        # Generate a secure token with expiration (1 hour)
+        token = serializer.dumps({"email": user.email}, salt="password-reset")
+        reset_link = f"{os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')}/reset-password?token={token}"
 
         # Send password reset email
         message = MessageSchema(
@@ -194,6 +195,7 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
                         <p>We received a request to reset your password. Click the link below to reset your password:</p>
                         <a href="{reset_link}">Reset Password</a>
                         <p>If you did not request a password reset, you can safely ignore this email.</p>
+                        <p>This link will expire in 1 hour.</p>
                     </body>
                 </html>
             """,
@@ -202,6 +204,7 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
         fm = FastMail(conf)
         await fm.send_message(message)
 
+        logging.info(f"Password reset link sent to {request.email}")
         return {"message": "Password reset link has been sent to your email."}
 
     except Exception as e:
@@ -209,21 +212,57 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
 
 
+from fastapi import HTTPException
+
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Reset the user's password using the provided token and new password.
+    """
     try:
-        email = serializer.loads(data.token, salt="password-reset", max_age=3600)
+        # Validate and decode the token to extract the email
+        decoded_data = serializer.loads(data.token, salt="password-reset", max_age=3600)
+
+        # Ensure the decoded_data is a string (email)
+        if isinstance(decoded_data, dict) and "email" in decoded_data:
+            email = decoded_data["email"]
+        elif isinstance(decoded_data, str):
+            email = decoded_data
+        else:
+            raise HTTPException(status_code=400, detail="Invalid token format.")
+
+        # Fetch the user from the database using the decoded email
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # Validate the new password strength
+        try:
+            validate_password(data.new_password)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # Check if the new password is different from the current one
+        if verify_password(data.new_password, user.password):
+            raise HTTPException(
+                status_code=400,
+                detail="New password cannot be the same as the current password."
+            )
+
+        # Hash and update the password
+        user.password = hash_password(data.new_password)
+        await db.commit()
+
+        return {"message": "Password has been reset successfully."}
+
     except SignatureExpired:
         raise HTTPException(status_code=400, detail="The reset token has expired.")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid reset token.")
-
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
-
-    user.password = hash_password(data.new_password)
-    await db.commit()
-
-    return {"message": "Password has been reset successfully."}
+    except HTTPException as http_ex:
+        raise http_ex  # Re-raise known HTTPExceptions
+    except Exception as e:
+        # Log unexpected errors
+        logging.error(f"Unexpected error during password reset: {str(e)}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
