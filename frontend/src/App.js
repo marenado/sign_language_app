@@ -8,6 +8,8 @@ import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
 // import TaskCreation from "./components/TaskCreation";
 import Settings from "./components/Settings";
+import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
 import ModuleManagement from "./components/ModuleManagement";
 import { jwtDecode } from "jwt-decode";
 
@@ -78,6 +80,9 @@ const Login = ({ setIsAdmin }) => {
           />
           <Button type="submit">Sign in</Button>
           {message && <Message>{message}</Message>}
+  <ForgotPasswordLink onClick={() => navigate("/forgot-password")}>
+    Forgot Password?
+  </ForgotPasswordLink> {/* New link */}
           <Separator>Or continue with</Separator>
           <SocialButtons>
             <SocialButton className="google" onClick={() => (window.location.href = "http://127.0.0.1:8000/auth/google/login")}>
@@ -151,7 +156,13 @@ const App = () => {
           path="/admin/lessons/:lessonId/tasks"
           element={isAdmin ? <TaskList /> : <div>Access Denied</div>}
         />
+
+<Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
+<Route path="/reset-password" element={<ResetPassword />} /> {/* New route */}
       </Routes>
+
+      
+
     </Router>
   );
 };
@@ -294,3 +305,13 @@ const Message = styled.p`
   margin-top: 15px;
 `;
 
+const ForgotPasswordLink = styled.div`
+  margin-top: 10px;
+  color: #4a316f;
+  cursor: pointer;
+  font-size: 0.9rem;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;

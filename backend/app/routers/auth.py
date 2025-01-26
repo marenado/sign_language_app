@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
+from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
 from app.schemas.auth import LoginRequest, TokenResponse, SignupRequest
 from app.utils.auth import verify_password, create_access_token, hash_password
 from sqlalchemy.future import select
@@ -163,3 +164,66 @@ async def login_user(credentials: LoginRequest, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=500, detail="An error occurred during login")
     finally:
         await db.close()
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Generate and send a password reset link to the user's email.
+    """
+    try:
+        # Check if user exists with the provided email
+        result = await db.execute(select(User).where(User.email == request.email))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User with this email does not exist.")
+
+        # Generate a secure token
+        token = serializer.dumps(request.email, salt="password-reset")
+        reset_link = f"http://127.0.0.1:3000/reset-password?token={token}"
+
+        # Send password reset email
+        message = MessageSchema(
+            subject="Password Reset Request",
+            recipients=[request.email],
+            body=f"""
+                <html>
+                    <body>
+                        <p>Hi {user.username},</p>
+                        <p>We received a request to reset your password. Click the link below to reset your password:</p>
+                        <a href="{reset_link}">Reset Password</a>
+                        <p>If you did not request a password reset, you can safely ignore this email.</p>
+                    </body>
+                </html>
+            """,
+            subtype="html",
+        )
+        fm = FastMail(conf)
+        await fm.send_message(message)
+
+        return {"message": "Password reset link has been sent to your email."}
+
+    except Exception as e:
+        logging.error(f"Error during forgot password: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+
+
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        email = serializer.loads(data.token, salt="password-reset", max_age=3600)
+    except SignatureExpired:
+        raise HTTPException(status_code=400, detail="The reset token has expired.")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid reset token.")
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    user.password = hash_password(data.new_password)
+    await db.commit()
+
+    return {"message": "Password has been reset successfully."}
