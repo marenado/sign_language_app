@@ -14,6 +14,6 @@ class VideoReference(Base):
     # Define many-to-many relationship with Task
     tasks = relationship(
         "Task",
-        secondary="task_video",  # Association table
+        secondary="task_video",  
         back_populates="videos"
     )

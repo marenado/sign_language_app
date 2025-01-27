@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { EmojiEvents, TrendingUp } from "@mui/icons-material"; // Import icons
 import Sidebar from "./Sidebar"; // Import Sidebar
 import { Line } from "react-chartjs-2";
 import {
@@ -20,6 +21,7 @@ Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Too
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [topUsers, setTopUsers] = useState([]);
   const [error, setError] = useState(null);
   const navigate = useNavigate(); // Initialize navigation
 
@@ -30,15 +32,23 @@ const Dashboard = () => {
       setLoading(false);
       return;
     }
-
+  
     const fetchData = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/users/dashboard", {
+        const dashboardResponse = await axios.get("http://127.0.0.1:8000/users/dashboard", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-        setDashboardData(response.data);
+  
+        const topUsersResponse = await axios.get("http://127.0.0.1:8000/users/top-users", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+  
+        setDashboardData(dashboardResponse.data);
+        setTopUsers(topUsersResponse.data); // Set topUsers state
       } catch (err) {
         console.error(err);
         setError(err.response?.data?.detail || "Failed to load dashboard data.");
@@ -46,9 +56,12 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
+    console.log("Top Users Data:", topUsers);
 
+  
     fetchData();
   }, []);
+  
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -91,7 +104,7 @@ const Dashboard = () => {
       },
       title: {
         display: true,
-        text: "Monthly Trends",
+        // text: "Monthly Trends",
         font: {
           size: 18,
         },
@@ -245,21 +258,145 @@ const Dashboard = () => {
           </Card>
         </Box>
 
-        {/* Chart */}
         <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          <Card sx={{ borderRadius: "20px", padding: "20px", maxWidth: "800px", width: "100%" }}>
-            <CardContent>
-              <Line data={chartData} options={chartOptions} />
-            </CardContent>
-          </Card>
-        </Box>
+  sx={{
+    display: "flex",
+    gap: "20px",
+    justifyContent: "center",
+    alignItems: "flex-start", // Align items at the top
+    marginTop: "20px",
+    padding: "20px",
+  }}
+>
+  {/* Chart Section */}
+  <Card
+    sx={{
+      flex: "1 1 70%", // Use half of the space
+      borderRadius: "20px",
+      padding: "0", // Remove padding to let the content fill the card
+      boxShadow: "0 4px 10px rgba(0, 0, 0, 0.1)",
+      height: "540px", // Set consistent height
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+    }}
+  >
+     <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center", // Center the text and icon
+        margin: "15px 0",
+      }}
+    >
+      <TrendingUp
+        sx={{
+          marginRight: "8px",
+          color: "#3b82f6", // Trendy blue color
+          fontSize: "24px", // Adjust the size of the icon
+        }}
+      />
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: "bold",
+        }}
+      >
+        Monthly Trends
+      </Typography>
+    </Box>
+    <Box
+      sx={{
+        flex: 1, // Ensure the chart takes up all available space
+        padding: "10px", // Add slight padding to avoid edges
+      }}
+    >
+      <Line
+        data={chartData}
+        options={{
+          ...chartOptions,
+          maintainAspectRatio: false, // Allow the chart to stretch
+        }}
+      />
+    </Box>
+  </Card>
+
+  {/* Top Users Section */}
+  <Card
+    sx={{
+      flex: "1 1 30%", // Use half of the space
+      borderRadius: "20px",
+      boxShadow: "0 4px 10px rgba(0, 0, 0, 0.1)",
+      minHeight: "450px", // Ensure a minimum height for balance
+      height: "500px", // Dynamically calculate height
+      padding: "20px",
+    }}
+  >
+     <Box
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center", // Center the text and icon
+      marginBottom: "15px",
+    }}
+  >
+    <EmojiEvents
+      sx={{
+        marginRight: "8px",
+        color: "#fcd34d", // Golden crown color
+        fontSize: "24px", // Adjust the size of the icon
+      }}
+    />
+    <Typography
+      variant="h6"
+      sx={{
+        fontWeight: "bold",
+      }}
+    >
+      Top Users
+    </Typography>
+  </Box>
+  {topUsers.map((user) => (
+    <Box
+      key={user.id}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        marginBottom: "15px",
+        padding: "10px",
+        borderRadius: "10px",
+        backgroundColor: "#f9f9ff",
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+      }}
+    >
+      <Avatar
+        src={user.avatar || "https://via.placeholder.com/50"}
+        alt={user.username}
+        sx={{
+          marginRight: "10px",
+          width: "50px",
+          height: "50px",
+          border: "2px solid #ddd",
+        }}
+      />
+      <Box>
+        <Typography sx={{ fontWeight: "bold", color: "#333" }}>
+          {user.username}
+        </Typography>
+        <Typography sx={{ color: "#666", fontSize: "14px" }}>
+          {user.points} Points
+        </Typography>
       </Box>
     </Box>
+  ))}
+</Card>
+</Box>
+
+
+        
+        </Box>
+      </Box>
+  
   );
 };
 

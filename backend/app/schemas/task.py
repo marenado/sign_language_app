@@ -58,3 +58,5 @@ class TaskResponse(BaseModel):
 
     class Config:
         orm_mode = True
+        from_attributes = True  # Add this line to enable `from_orm` compatibility
+

@@ -1,10 +1,18 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Query
 from sqlalchemy.future import select
+from typing import List
+from sqlalchemy.orm import selectinload
+from fastapi import Body
+from app.models.task import Task
 from sqlalchemy.sql import text
+from app.schemas.user import TaskCompletionRequest
 from app.database import get_db
+from app.schemas.task import TaskResponse
+from app.models.language import Language  
 from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.schemas.user import UserCreate, UserResponse, UserUpdate,PointsUpdateRequest
 from app.utils.auth import (
     verify_email_verification_token,
     create_access_token,
@@ -327,3 +335,350 @@ async def update_user_settings(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+
+@router.get("/modules", response_model=list[dict])
+async def get_user_modules(
+    language_id: int = Query(..., description="Language ID for filtering modules"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get modules for the current user filtered by language and with status, including lessons.
+    """
+    try:
+        # Fetch all modules for the selected language
+        modules_query = await db.execute(
+            select(Module).where(Module.language_id == language_id).order_by(Module.module_id)
+        )
+        all_modules = modules_query.scalars().all()
+
+        # Fetch user's progress
+        user_progress_query = text("""
+            SELECT lesson.module_id, lesson.lesson_id, COUNT(progress.lesson_id) AS lessons_completed
+            FROM lesson
+            LEFT JOIN progress ON progress.lesson_id = lesson.lesson_id
+            AND progress.user_id = :user_id AND progress.is_completed = TRUE
+            GROUP BY lesson.module_id, lesson.lesson_id
+        """)
+        user_progress_result = await db.execute(
+            user_progress_query, {"user_id": current_user.user_id}
+        )
+
+        # Convert user progress into a dictionary
+        user_progress = {
+            row.lesson_id: row.lessons_completed for row in user_progress_result.mappings()
+        }
+
+        response = []
+        for module in all_modules:
+            # Get lessons in this module
+            lessons_query = await db.execute(
+                select(Lesson).where(Lesson.module_id == module.module_id)
+            )
+            lessons = lessons_query.scalars().all()
+
+            # Add lesson details
+            lessons_response = []
+            for lesson in lessons:
+                # Fetch total points for the lesson
+                total_points_query = await db.execute(
+                    text("SELECT COALESCE(SUM(points), 0) FROM task WHERE lesson_id = :lesson_id"),
+                    {"lesson_id": lesson.lesson_id},
+                )
+                total_points = total_points_query.scalar()
+
+                # Fetch earned points for the lesson
+                earned_points_query = await db.execute(
+                    text("SELECT COALESCE(score, 0) FROM progress WHERE user_id = :user_id AND lesson_id = :lesson_id"),
+                    {"user_id": current_user.user_id, "lesson_id": lesson.lesson_id},
+                )
+                earned_points = earned_points_query.scalar()
+
+                lesson_status = "completed" if user_progress.get(lesson.lesson_id) else "in-progress"
+                lessons_response.append({
+                    "id": lesson.lesson_id,
+                    "title": lesson.title,
+                    "status": lesson_status,
+                    "earned_points": earned_points,
+                    "total_points": total_points,
+                })
+
+            completed_lessons = sum(1 for lesson in lessons_response if lesson["status"] == "completed")
+            is_completed = completed_lessons == len(lessons)
+
+            # Determine the module's status
+            is_unlocked = True
+            if module.prerequisite_mod:
+                prerequisite_module_query = await db.execute(
+                    select(Module).where(Module.module_id == module.prerequisite_mod)
+                )
+                prerequisite_module = prerequisite_module_query.scalar()
+                if prerequisite_module:
+                    prereq_lessons_query = await db.execute(
+                        select(Lesson).where(Lesson.module_id == prerequisite_module.module_id)
+                    )
+                    prereq_lessons = prereq_lessons_query.scalars().all()
+                    prereq_completed = all(
+                        user_progress.get(lesson.lesson_id) for lesson in prereq_lessons
+                    )
+                    is_unlocked = prereq_completed
+
+            module_status = "locked" if not is_unlocked else "completed" if is_completed else "in-progress"
+
+            response.append({
+                "id": module.module_id,
+                "title": module.title,
+                "description": module.description,
+                "lessons_completed": completed_lessons,
+                "total_lessons": len(lessons),
+                "status": module_status,
+                "lessons": lessons_response,  # Include lessons in response
+            })
+
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch modules: {str(e)}")
+
+
+
+
+@router.get("/languages", response_model=list[dict])
+async def get_languages(db: AsyncSession = Depends(get_db)):
+    """
+    Get all available languages.
+    """
+    languages_query = await db.execute(select(Language).order_by(Language.id))
+    languages = languages_query.scalars().all()
+
+    response = [{"id": language.id, "name": language.name, "code": language.code} for language in languages]
+    return response
+
+
+
+@router.get("/lessons/{lesson_id}/tasks", response_model=List[TaskResponse])
+async def get_tasks_for_lesson(
+    lesson_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Fetch all tasks for a specific lesson.
+    """
+    logger.info(f"Fetching tasks for lesson ID: {lesson_id}")
+    try:
+        # Query tasks with their associated videos (if any)
+        tasks_query = await db.execute(
+            select(Task)
+            .where(Task.lesson_id == lesson_id)
+            .options(selectinload(Task.videos))  # Eager load videos relationship
+            .order_by(Task.task_id)
+        )
+        tasks = tasks_query.scalars().all()
+
+        if not tasks:
+            raise HTTPException(status_code=404, detail=f"No tasks found for lesson ID: {lesson_id}")
+
+        # Serialize the tasks
+        task_responses = [TaskResponse.from_orm(task) for task in tasks]
+        return task_responses
+    except HTTPException as http_ex:
+        logger.error(f"HTTPException fetching tasks for lesson ID {lesson_id}: {str(http_ex)}")
+        raise http_ex
+    except Exception as e:
+        logger.error(f"Unexpected error fetching tasks for lesson ID {lesson_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch tasks")
+
+@router.get("/tasks/{task_id}", response_model=TaskResponse)
+async def get_task_by_id(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Fetch a single task by its task_id.
+    """
+    logger.info(f"Fetching task ID: {task_id}")
+    try:
+        task_query = await db.execute(
+            select(Task).where(Task.task_id == task_id).options(selectinload(Task.videos))
+        )
+        task = task_query.scalar()
+
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task with ID {task_id} not found")
+
+        return task
+    except Exception as e:
+        logger.error(f"Error fetching task ID {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch the task")
+    
+
+
+    # Get current user's points
+@router.get("/points", response_model=dict)
+async def get_user_points(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch the current user's points.
+    """
+    return {"points": current_user.points}
+
+# Update user's points
+@router.post("/update-points", status_code=200)
+async def update_points(
+    request: PointsUpdateRequest,  # Accepting from the request body
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Update user points
+    current_user.points += request.points
+    await db.commit()
+    await db.refresh(current_user)
+    
+    return {"message": "Points updated successfully", "total_points": current_user.points}
+
+
+@router.post("/lessons/{lesson_id}/complete", status_code=200)
+async def mark_lesson_complete(
+    lesson_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Marks the lesson as complete only if the user has earned 70% of the total points.
+    """
+    try:
+        # Get total points for the lesson
+        total_points_query = await db.execute(
+            text("SELECT COALESCE(SUM(points), 0) FROM task WHERE lesson_id = :lesson_id"),
+            {"lesson_id": lesson_id},
+        )
+        total_points = total_points_query.scalar() or 0
+        logger.info(f"Total points for lesson {lesson_id}: {total_points}")
+
+        if total_points == 0:
+            raise HTTPException(status_code=400, detail="No tasks found for the lesson to calculate points.")
+
+        # Get user points for the lesson
+        user_points_query = await db.execute(
+            text("SELECT COALESCE(score, 0) FROM progress WHERE user_id = :user_id AND lesson_id = :lesson_id"),
+            {"user_id": current_user.user_id, "lesson_id": lesson_id},
+        )
+        user_points = user_points_query.scalar() or 0
+        logger.info(f"User {current_user.user_id} points for lesson {lesson_id}: {user_points}")
+
+        # Check if user has enough points to complete the lesson
+        required_points = 0.7 * total_points
+        if user_points < required_points:
+            raise HTTPException(
+                status_code=400,
+                detail=f"You have not earned enough points to complete the lesson. "
+                       f"Required: {required_points}, Earned: {user_points}"
+            )
+
+        # Mark lesson as complete
+        progress_query = text("""
+            UPDATE progress
+            SET is_completed = TRUE, completed_at = NOW()
+            WHERE user_id = :user_id AND lesson_id = :lesson_id
+        """)
+        await db.execute(progress_query, {"user_id": current_user.user_id, "lesson_id": lesson_id})
+        await db.commit()
+
+        # Update user total points
+        current_user.points += user_points
+        await db.commit()
+
+        return {"message": "Lesson marked as complete and points added to your account"}
+    except HTTPException as http_ex:
+        logger.error(f"HTTP Error: {http_ex.detail}")
+        raise http_ex
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Unexpected error marking lesson complete: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error marking lesson as complete: {str(e)}")
+
+
+
+@router.post("/lessons/{lesson_id}/tasks/{task_id}/complete", status_code=200)
+async def complete_task(
+    lesson_id: int,
+    task_id: int,
+    request: TaskCompletionRequest = Body(...),  # Use TaskCompletionRequest as the body
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Marks a task as completed for the user and updates the progress score.
+    """
+    try:
+        points_earned = request.points_earned  # Extract points_earned from the request body
+
+        # Ensure the task exists and belongs to the lesson
+        task_query = await db.execute(
+            select(Task).where(Task.task_id == task_id, Task.lesson_id == lesson_id)
+        )
+        task = task_query.scalar()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found in the lesson")
+
+        # Update or insert task completion progress
+        progress_query = text("""
+            INSERT INTO progress (user_id, lesson_id, is_completed, score, attempts, time_spent)
+            VALUES (:user_id, :lesson_id, FALSE, :points_earned, 1, 0)
+            ON CONFLICT (user_id, lesson_id)
+            DO UPDATE SET
+                score = progress.score + :points_earned,
+                attempts = progress.attempts + 1
+        """)
+        await db.execute(
+            progress_query,
+            {"user_id": current_user.user_id, "lesson_id": lesson_id, "points_earned": points_earned},
+        )
+        await db.commit()
+
+        return {"message": "Task points updated successfully"}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating task points: {str(e)}")
+
+
+
+@router.get("/top-users", response_model=List[dict])
+async def get_top_users(db: AsyncSession = Depends(get_db)):
+    """
+    Get the top 5 users with the highest points, excluding superadmin users, and include their avatars.
+    """
+    try:
+        # Query the top 5 users ordered by points in descending order and excluding superadmin users
+        result = await db.execute(
+            select(User.username, User.points, User.avatar)
+            .where(User.is_admin == False)  # Exclude admin users
+            .order_by(User.points.desc())  # Order by points in descending order
+            .limit(5)  # Limit the result to top 5 users
+        )
+        top_users = result.all()
+
+        if not top_users:
+            raise HTTPException(status_code=404, detail="No users found.")
+
+        # Prepare the response data, prefixing avatar URLs with the S3 base URL if necessary
+    # base_url = "https://singlearnavatarstorage.s3.amazonaws.com/"  # Replace with your actual S3 bucket URL
+        return [
+            {
+                "username": user.username,
+                "points": user.points,
+                "avatar": f"{user.avatar}" if user.avatar else None
+            }
+            for user in top_users
+        ]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch top users: {str(e)}")

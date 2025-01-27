@@ -25,3 +25,10 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = Field(None, description="Updated email")
     password: Optional[str] = Field(None, description="Updated password")
     avatar: Optional[str] = Field(None, description="Updated avatar URL")
+
+
+class PointsUpdateRequest(BaseModel):
+    points: int
+
+class TaskCompletionRequest(BaseModel):
+    points_earned: int

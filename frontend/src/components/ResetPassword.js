@@ -10,22 +10,28 @@ const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const handleResetPassword = async (e) => {
+ 
+const handleResetPassword = async (e) => {
     e.preventDefault();
     const token = searchParams.get("token");
+  
     try {
       await axios.post("http://127.0.0.1:8000/auth/reset-password", {
         token,
         new_password: password,
       });
-      setMessage("Password reset successfully! You can now log in.");
+      setMessage("Password reset successfully! You will be now redirecred to the login page.");
       setError(false);
+      
+      // Redirect to the "/" page after a successful reset
+      setTimeout(() => {
+        navigate("/");
+      }, 3000);
     } catch (err) {
       setMessage(err.response?.data?.detail || "An error occurred while processing your request.");
       setError(true);
     }
   };
-
   return (
     <Container>
       <Form onSubmit={handleResetPassword}>

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-from app.routers import users, auth
+from app.routers import users, auth, dictionary
 
 app = FastAPI()
 
@@ -30,6 +30,8 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "ya
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(dictionary.router)
+
 
 # Static file serving for media
 media_directory = "media"

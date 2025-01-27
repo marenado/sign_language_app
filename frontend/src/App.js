@@ -4,11 +4,14 @@ import axios from "axios";
 import styled from "styled-components";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import SignUp from "./components/SignUp";
+import DictionaryPage from "./components/DictionaryPage";
+import TasksPage from "./components/TasksPage";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
 // import TaskCreation from "./components/TaskCreation";
 import Settings from "./components/Settings";
 import EmailVerified from "./components/EmailVerified";
+import ModulePage from "./components/ModulePage";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 import ModuleManagement from "./components/ModuleManagement";
@@ -161,6 +164,19 @@ const App = () => {
 
 <Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
 <Route path="/reset-password" element={<ResetPassword />} /> {/* New route */}
+<Route
+  path="/modules"
+  element={!isAdmin ? <ModulePage /> : <div>Access Denied</div>}
+/>
+
+<Route path="/tasks/:taskId" element={<TasksPage />} />
+<Route
+      path="/dictionary"
+      element={!isAdmin ? <DictionaryPage /> : <div>Access Denied</div>} // Added DictionaryPage route
+    />
+
+
+
       </Routes>
 
       

@@ -2,7 +2,11 @@ import os
 import json
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from ..models.video_reference import VideoReference
+from app.models.task import Task
+from app.models.video_reference import VideoReference
+from app.models.task_video import TaskVideo
+
+from app.models.video_reference import VideoReference
 from dotenv import load_dotenv
 
 # Load environment variables

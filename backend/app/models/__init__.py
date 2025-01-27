@@ -11,3 +11,4 @@ from .dictionary import Dictionary
 from .dictionary_category import DictionaryCategory
 from .dictionary_usage import DictionaryUsage
 from .user_activity_log import UserActivityLog
+from .video_reference import  VideoReference
