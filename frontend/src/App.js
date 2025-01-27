@@ -9,11 +9,13 @@ import TasksPage from "./components/TasksPage";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
 // import TaskCreation from "./components/TaskCreation";
+import Sidebar from "./components/Sidebar";
 import Settings from "./components/Settings";
 import EmailVerified from "./components/EmailVerified";
 import ModulePage from "./components/ModulePage";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
+import api from "./services/api";
 import ModuleManagement from "./components/ModuleManagement";
 import { jwtDecode } from "jwt-decode";
 
@@ -24,33 +26,37 @@ const Login = ({ setIsAdmin }) => {
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
+ 
+
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post("http://127.0.0.1:8000/auth/login", {
+      // Use `api.post` instead of `axios.post`
+      const response = await api.post("/auth/login", {
         email,
         password,
       });
-      const { access_token } = response.data;
-
+  
+      const { access_token, refresh_token } = response.data;
+  
+      // Save tokens in localStorage
       localStorage.setItem("authToken", access_token);
+      localStorage.setItem("refreshToken", refresh_token);
+  
       const decodedToken = jwtDecode(access_token);
-
       const isAdmin = decodedToken.is_admin;
       localStorage.setItem("isAdmin", isAdmin);
-
+  
       setIsAdmin(isAdmin);
-
-      navigate(isAdmin ? "/admin/modules" : "/dashboard"); 
+  
+      // Navigate based on user role
+      navigate(isAdmin ? "/admin/modules" : "/dashboard");
     } catch (error) {
       console.error("Login error:", error.response?.data?.detail || error.message);
       setMessage("Invalid email or password. Please try again.");
     }
-
-    console.log("Email:", email);
-    console.log("Password:", password);
-
   };
+  
 
   return (
     <Container>
@@ -105,6 +111,15 @@ const Login = ({ setIsAdmin }) => {
   );
 };
 
+
+const Layout = ({ children }) => (
+  <div style={{ display: "flex", height: "100vh" }}>
+    <Sidebar /> {/* Persistent Sidebar */}
+    <div style={{ flex: 1, overflowY: "auto" }}>{children}</div>
+  </div>
+);
+
+
 const App = () => {
   const [isAdmin, setIsAdmin] = useState(null);
 
@@ -130,58 +145,81 @@ const App = () => {
 
   return (
     <Router>
-      <Routes>
-        {/* Login and Signup */}
-        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} /> {/* Pass setIsAdmin here */}
-        <Route path="/signup" element={<SignUp />} />
+    <Routes>
+      {/* Login and Signup */}
+      <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
+      <Route path="/signup" element={<SignUp />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<EmailVerified />} />
 
-        {/* Admin Routes */}
-        <Route
-          path="/admin/modules"
-          element={isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
-        />
-        <Route
-          path="/admin/settings"
-          element={isAdmin ? <Settings /> : <div>Access Denied</div>}
-        />
-
-        {/* User Routes */}
-        <Route
-          path="/dashboard"
-          element={!isAdmin ? <Dashboard /> : <div>Access Denied</div>}
-        />
-        <Route
-          path="/users/profile"
-          element={!isAdmin ? <Settings /> : <div>Access Denied</div>}
-        />
-
-        {/* Shared Routes */}
-        <Route
-          path="/admin/lessons/:lessonId/tasks"
-          element={isAdmin ? <TaskList /> : <div>Access Denied</div>}
-        />
-        <Route path="/verify-email" element={<EmailVerified />} />
-
-<Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
-<Route path="/reset-password" element={<ResetPassword />} /> {/* New route */}
-<Route
-  path="/modules"
-  element={!isAdmin ? <ModulePage /> : <div>Access Denied</div>}
-/>
-
-<Route path="/tasks/:taskId" element={<TasksPage />} />
-<Route
-      path="/dictionary"
-      element={!isAdmin ? <DictionaryPage /> : <div>Access Denied</div>} // Added DictionaryPage route
-    />
-
-
-
-      </Routes>
-
-      
-
-    </Router>
+      {/* Routes with Persistent Sidebar */}
+      <Route
+        path="/dashboard"
+        element={
+          <Layout>
+            {!isAdmin ? <Dashboard /> : <div>Access Denied</div>}
+          </Layout>
+        }
+      />
+      <Route
+        path="/dictionary"
+        element={
+          <Layout>
+            {!isAdmin ? <DictionaryPage /> : <div>Access Denied</div>}
+          </Layout>
+        }
+      />
+      <Route
+        path="/modules"
+        element={
+          <Layout>
+            {!isAdmin ? <ModulePage /> : <div>Access Denied</div>}
+          </Layout>
+        }
+      />
+      <Route
+        path="/admin/modules"
+        element={
+          <Layout>
+            {isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
+          </Layout>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <Layout>
+            {isAdmin ? <Settings /> : <div>Access Denied</div>}
+          </Layout>
+        }
+      />
+      <Route
+        path="/users/profile"
+        element={
+          <Layout>
+            {!isAdmin ? <Settings /> : <div>Access Denied</div>}
+          </Layout>
+        }
+      />
+      <Route
+        path="/tasks/:taskId"
+        element={
+          <Layout>
+            <TasksPage />
+          </Layout>
+        }
+      />
+      <Route
+        path="/admin/lessons/:lessonId/tasks"
+        element={
+          <Layout>
+            {isAdmin ? <TaskList /> : <div>Access Denied</div>}
+          </Layout>
+        }
+      />
+    </Routes>
+  </Router>
   );
 };
 

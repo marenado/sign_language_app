@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
+import api from "../services/api";
 import { Search as SearchIcon } from "@mui/icons-material"; // Material-UI Icon for the magnifying glass
 
 const BASE_URL = "http://127.0.0.1:8000"; // Adjust the backend API base URL
@@ -22,12 +23,8 @@ const DictionaryPage = () => {
   const fetchDictionaryItems = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${BASE_URL}/dictionary`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
-  
+      const response = await api.get("/dictionary"); // Use the `api` instance
       console.log("Dictionary items:", response.data); // Log the received URLs
-  
       setDictionaryItems(response.data);
       setError("");
     } catch (err) {
@@ -37,6 +34,7 @@ const DictionaryPage = () => {
       setLoading(false);
     }
   };
+  
   
 
   // Filtered dictionary items based on search and alphabet filter
@@ -52,7 +50,7 @@ const DictionaryPage = () => {
 
   return (
     <PageContainer>
-      <Sidebar />
+      {/* <Sidebar /> */}
       <Content>
         <Header>
           <SearchBarContainer>

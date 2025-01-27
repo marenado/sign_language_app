@@ -3,6 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.models.user import User
+from fastapi import APIRouter, HTTPException, Depends
+from dotenv import load_dotenv
+import os
+from jose import jwt, JWTError
+from jose.exceptions import ExpiredSignatureError
 import requests
 from sqlalchemy.exc import IntegrityError
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
@@ -20,6 +25,11 @@ from app.utils.auth import validate_password
 from pydantic import ValidationError
 import os
 
+from pydantic import BaseModel
+
+
+
+
 
 
 load_dotenv()
@@ -31,7 +41,14 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+
 MAILBOXLAYER_API_KEY = os.getenv("MAILBOXLAYER_API_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"  # Algorithm used for JWT
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
 
 # Environment variable validation
@@ -108,12 +125,36 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == request.email))
-    user = result.scalar_one_or_none()
-    if not user or not verify_password(request.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
+    """
+    Authenticate the user and issue access and refresh tokens.
+    """
+    try:
+        # Fetch user from database by email
+        result = await db.execute(select(User).where(User.email == request.email))
+        user = result.scalar_one_or_none()
+
+        # Verify user credentials
+        if not user or not verify_password(request.password, user.password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        # Generate access and refresh tokens
+        access_token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
+        refresh_token = create_access_token(
+            {"sub": user.email, "is_admin": user.is_admin},
+            expire_minutes=1440,  # Refresh token valid for 24 hours
+        )
+
+        # Return tokens
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
+
+    except Exception as e:
+        logging.error(f"Error during login: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred during login.")
+
 
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
@@ -362,6 +403,36 @@ async def check_email(email: str, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logging.error(f"Error checking email: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred while checking the email.")
+    
+
+@router.post("/refresh")
+async def refresh_access_token_endpoint(
+    request: TokenRefreshRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        # Decode refresh token
+        payload = jwt.decode(request.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid refresh token.")
+
+        # Fetch user from database
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # Generate new access token
+        access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
+
+        return {"access_token": access_token}
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token has expired.")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token.")
 
     
 

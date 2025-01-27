@@ -135,7 +135,7 @@ const Settings = () => {
       }}
     >
       {/* Reusable Sidebar Component */}
-      <Sidebar />
+      {/* <Sidebar /> */}
 
       {/* Main Content */}
       <Box

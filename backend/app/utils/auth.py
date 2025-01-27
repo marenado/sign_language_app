@@ -48,70 +48,109 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 #     return token
 
 
-def create_access_token(data: dict) -> str:
+# def create_access_token(data: dict) -> str:
+#     to_encode = data.copy()
+#     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+#     to_encode.update({"exp": expire})
+#     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+#     logger.info(f"Token created with payload: {to_encode}")
+#     return token
+
+def create_access_token(data: dict, expire_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
+    """
+    Create a JWT token with the specified expiration time.
+    """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     logger.info(f"Token created with payload: {to_encode}")
     return token
 
+
+def create_refresh_token(data: dict, expire_minutes: int = 10080) -> str:  # Default: 7 days
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
 from fastapi.responses import JSONResponse
 
 def refresh_access_token(token: str) -> str:
-    """
-    Refresh the access token's expiration if close to expiring.
-    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         exp = payload.get("exp")
-        remaining_time = exp - datetime.utcnow().timestamp()
-
-        # Refresh if less than 5 minutes remaining
-        if remaining_time < 5 * 60:
+        if not exp or exp - datetime.utcnow().timestamp() < 5 * 60:
             payload.pop("exp", None)  # Remove old expiration
-            return create_access_token(payload)  # Issue a new token
-
+            return create_access_token({"sub": payload["sub"], "is_admin": payload.get("is_admin", False)})
         return token
-    except JWTError as e:
-        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired. Please log in again.")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token.")
+
 
 
 
 # Get the current authenticated user
-async def get_current_user(
-    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
-) -> dict:
-    """
-    Get the current authenticated user and refresh the token if necessary.
-    """
+# async def get_current_user(
+#     token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
+# ) -> User:
+#     try:
+#         # Decode the JWT
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         email: str = payload.get("sub")
+#         is_admin: bool = payload.get("is_admin", False)
+
+#         if email is None:
+#             logger.warning(f"Invalid token payload: {payload}")
+#             raise HTTPException(status_code=401, detail="Invalid token payload.")
+
+#         # Fetch user from database
+#         result = await db.execute(select(User).where(User.email == email))
+#         user = result.scalar_one_or_none()
+
+#         if not user:
+#             logger.error(f"User not found for email: {email}")
+#             raise HTTPException(status_code=404, detail="User not found.")
+
+#         # Attach role from token
+#         user.is_admin = is_admin
+
+#         logger.info(f"Authenticated user: {user.email}, is_admin: {is_admin}")
+#         return user
+
+#     except JWTError as e:
+#         logger.error(f"JWT error: {str(e)}")
+#         raise HTTPException(status_code=401, detail="Invalid or expired token.")
+
+def validate_token(token: str) -> dict:
     try:
-        # Decode and verify the JWT
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        is_admin: bool = payload.get("is_admin", False)
-
-        if email is None:
-            raise HTTPException(status_code=401, detail="Invalid token payload.")
-
-        # Fetch user from database
-        result = await db.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
-
-        # Attach role from token
-        user.is_admin = is_admin
-
-        # Refresh token
-        new_token = refresh_access_token(token)
-
-        return {"user": user, "token": new_token}
-
+        return payload
     except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired.")
+        raise HTTPException(status_code=401, detail="Access token expired.")
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+        raise HTTPException(status_code=401, detail="Invalid token.")
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> User:
+    payload = validate_token(token)
+    email: str = payload.get("sub")
+    is_admin: bool = payload.get("is_admin", False)
+
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid token payload.")
+    
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    user.is_admin = is_admin
+    return user
+
 
 
 

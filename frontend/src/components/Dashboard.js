@@ -3,6 +3,7 @@ import axios from "axios";
 import { EmojiEvents, TrendingUp } from "@mui/icons-material"; // Import icons
 import Sidebar from "./Sidebar"; // Import Sidebar
 import { Line } from "react-chartjs-2";
+import api from "../services/api"; 
 import {
   Chart,
   CategoryScale,
@@ -26,42 +27,32 @@ const Dashboard = () => {
   const navigate = useNavigate(); // Initialize navigation
 
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    if (!token) {
-      setError("No authentication token found. Please log in.");
-      setLoading(false);
-      return;
-    }
-  
     const fetchData = async () => {
       try {
-        const dashboardResponse = await axios.get("http://127.0.0.1:8000/users/dashboard", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-  
-        const topUsersResponse = await axios.get("http://127.0.0.1:8000/users/top-users", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-  
+        // Fetch dashboard data using `api`
+        const dashboardResponse = await api.get("/users/dashboard");
+        const topUsersResponse = await api.get("/users/top-users");
+
         setDashboardData(dashboardResponse.data);
-        setTopUsers(topUsersResponse.data); // Set topUsers state
+        setTopUsers(topUsersResponse.data);
       } catch (err) {
-        console.error(err);
-        setError(err.response?.data?.detail || "Failed to load dashboard data.");
+        console.error("Error fetching data:", err);
+        if (err.response?.status === 401) {
+          // Handle token expiration
+          setError("Access token expired. Please log in again.");
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("refreshToken");
+          window.location.href = "/";
+        } else {
+          setError(err.response?.data?.detail || "Failed to load dashboard data.");
+        }
       } finally {
         setLoading(false);
       }
     };
-    console.log("Top Users Data:", topUsers);
 
-  
     fetchData();
   }, []);
-  
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;
@@ -148,7 +139,7 @@ const Dashboard = () => {
         overflow: "hidden",
       }}
     >
-      <Sidebar /> {/* Use Sidebar */}
+      {/* <Sidebar />  */}
       <Box
         sx={{
           flex: 1,
