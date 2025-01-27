@@ -9,7 +9,6 @@ import TasksPage from "./components/TasksPage";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
 // import TaskCreation from "./components/TaskCreation";
-import Sidebar from "./components/Sidebar";
 import Settings from "./components/Settings";
 import EmailVerified from "./components/EmailVerified";
 import ModulePage from "./components/ModulePage";
@@ -26,7 +25,7 @@ const Login = ({ setIsAdmin }) => {
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
- 
+  
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -111,15 +110,6 @@ const Login = ({ setIsAdmin }) => {
   );
 };
 
-
-const Layout = ({ children }) => (
-  <div style={{ display: "flex", height: "100vh" }}>
-    <Sidebar /> {/* Persistent Sidebar */}
-    <div style={{ flex: 1, overflowY: "auto" }}>{children}</div>
-  </div>
-);
-
-
 const App = () => {
   const [isAdmin, setIsAdmin] = useState(null);
 
@@ -145,81 +135,58 @@ const App = () => {
 
   return (
     <Router>
-    <Routes>
-      {/* Login and Signup */}
-      <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
-      <Route path="/signup" element={<SignUp />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/verify-email" element={<EmailVerified />} />
+      <Routes>
+        {/* Login and Signup */}
+        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} /> {/* Pass setIsAdmin here */}
+        <Route path="/signup" element={<SignUp />} />
 
-      {/* Routes with Persistent Sidebar */}
-      <Route
-        path="/dashboard"
-        element={
-          <Layout>
-            {!isAdmin ? <Dashboard /> : <div>Access Denied</div>}
-          </Layout>
-        }
-      />
-      <Route
-        path="/dictionary"
-        element={
-          <Layout>
-            {!isAdmin ? <DictionaryPage /> : <div>Access Denied</div>}
-          </Layout>
-        }
-      />
-      <Route
-        path="/modules"
-        element={
-          <Layout>
-            {!isAdmin ? <ModulePage /> : <div>Access Denied</div>}
-          </Layout>
-        }
-      />
-      <Route
-        path="/admin/modules"
-        element={
-          <Layout>
-            {isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
-          </Layout>
-        }
-      />
-      <Route
-        path="/admin/settings"
-        element={
-          <Layout>
-            {isAdmin ? <Settings /> : <div>Access Denied</div>}
-          </Layout>
-        }
-      />
-      <Route
-        path="/users/profile"
-        element={
-          <Layout>
-            {!isAdmin ? <Settings /> : <div>Access Denied</div>}
-          </Layout>
-        }
-      />
-      <Route
-        path="/tasks/:taskId"
-        element={
-          <Layout>
-            <TasksPage />
-          </Layout>
-        }
-      />
-      <Route
-        path="/admin/lessons/:lessonId/tasks"
-        element={
-          <Layout>
-            {isAdmin ? <TaskList /> : <div>Access Denied</div>}
-          </Layout>
-        }
-      />
-    </Routes>
-  </Router>
+        {/* Admin Routes */}
+        <Route
+          path="/admin/modules"
+          element={isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
+        />
+        <Route
+          path="/admin/settings"
+          element={isAdmin ? <Settings /> : <div>Access Denied</div>}
+        />
+
+        {/* User Routes */}
+        <Route
+          path="/dashboard"
+          element={!isAdmin ? <Dashboard /> : <div>Access Denied</div>}
+        />
+        <Route
+          path="/users/profile"
+          element={!isAdmin ? <Settings /> : <div>Access Denied</div>}
+        />
+
+        {/* Shared Routes */}
+        <Route
+          path="/admin/lessons/:lessonId/tasks"
+          element={isAdmin ? <TaskList /> : <div>Access Denied</div>}
+        />
+        <Route path="/verify-email" element={<EmailVerified />} />
+
+<Route path="/forgot-password" element={<ForgotPassword />} /> {/* New route */}
+<Route path="/reset-password" element={<ResetPassword />} /> {/* New route */}
+<Route
+  path="/modules"
+  element={!isAdmin ? <ModulePage /> : <div>Access Denied</div>}
+/>
+
+<Route path="/tasks/:taskId" element={<TasksPage />} />
+<Route
+      path="/dictionary"
+      element={!isAdmin ? <DictionaryPage /> : <div>Access Denied</div>} // Added DictionaryPage route
+    />
+
+
+
+      </Routes>
+
+      
+
+    </Router>
   );
 };
 

@@ -91,7 +91,7 @@ const ModulesPage = () => {
   return (
     
     <PageContainer>
-      {/* <Sidebar /> */}
+      <Sidebar />
       <Content>
         <Header>
           <h2>Modules</h2>

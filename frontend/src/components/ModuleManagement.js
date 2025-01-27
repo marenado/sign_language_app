@@ -587,7 +587,7 @@ const createTask = async () => {
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* Sidebar */}
-      {/* <Sidebar userType="admin" /> */}
+      <Sidebar userType="admin" />
 
       {/* Main Content */}
       <Box

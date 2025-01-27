@@ -50,7 +50,7 @@ const DictionaryPage = () => {
 
   return (
     <PageContainer>
-      {/* <Sidebar /> */}
+      <Sidebar />
       <Content>
         <Header>
           <SearchBarContainer>
@@ -123,18 +123,24 @@ const DictionaryPage = () => {
 
 export default DictionaryPage;
 
-// Styled Components
+
+// const SidebarWidth = "250px"; // Sidebar's fixed width
+
 const PageContainer = styled.div`
   display: flex;
-  height: 100vh; /* Ensure it takes the full viewport height */
-  width: 100vw; /* Ensure it takes the full viewport width */
-  overflow: hidden; /* Disable scrolling for this container */
+  height: 100vh; /* Full viewport height */
+  width: 100vw; /* Full viewport width */
+  overflow: hidden; /* Prevent scrolling */
 `;
 
+
+
+
 const Content = styled.div`
-  flex: 1;
-  overflow: hidden; /* Disable scrolling in the content area */
+  flex: 1; /* Take the remaining width */
+  overflow-y: auto; /* Allow vertical scrolling for content */
   background-color: #f9f9f9;
+  padding: 20px; /* Add some padding to the content area */
 `;
 
 const Header = styled.div`
@@ -202,13 +208,15 @@ const Letter = styled.button`
 
 const ContentContainer = styled.div`
   display: flex;
+  flex: 1; /* Take up all available vertical space */
   gap: 2rem;
+  overflow: hidden; /* Prevent scrolling */
 `;
 
+
 const DictionaryList = styled.div`
-  flex: 1;
-  max-height: 500px;
-  overflow-y: auto;
+  flex: 1; /* Let the list take proportional space */
+  overflow-y: auto; /* Optional if the content overflows within its box */
   border: 1px solid #ccc;
   border-radius: 5px;
   background-color: #fff;
@@ -231,12 +239,13 @@ const DictionaryItem = styled.div`
 `;
 
 const VideoSection = styled.div`
-  flex: 2;
+  flex: 2; /* Let the video section take more space */
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
+  overflow: hidden;
 `;
-
 const WordTitle = styled.h1`
   font-size: 2.5rem;
   margin-bottom: 1rem;

@@ -122,8 +122,8 @@ const Settings = () => {
     }
   };
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+  // if (loading) return <p>Loading...</p>;
+  // if (error) return <p style={{ color: "red" }}>{error}</p>;
 
   return (
     <Box
@@ -135,7 +135,7 @@ const Settings = () => {
       }}
     >
       {/* Reusable Sidebar Component */}
-      {/* <Sidebar /> */}
+      <Sidebar />
 
       {/* Main Content */}
       <Box

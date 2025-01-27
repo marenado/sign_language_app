@@ -169,7 +169,7 @@ const TasksPage = () => {
 
   return (
     <PageContainer>
-      {/* <Sidebar /> */}
+      <Sidebar />
       <MainContent>
         <HeaderContainer>
           <TaskHeader>{task?.task_type?.replace("_", " ").toUpperCase() || "Task"}</TaskHeader>

@@ -20,16 +20,24 @@ import { useNavigate } from "react-router-dom"; // Import navigation hook
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const Dashboard = () => {
-  const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardData, setDashboardData] = useState({
+    username: "User",
+    email: "user@example.com",
+    avatar: "https://via.placeholder.com/100",
+    points: 0,
+    lessons_completed: 0,
+    role: "",
+    total_time_spent: 0,
+  });;
   const [loading, setLoading] = useState(true);
   const [topUsers, setTopUsers] = useState([]);
   const [error, setError] = useState(null);
   const navigate = useNavigate(); // Initialize navigation
 
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch dashboard data using `api`
         const dashboardResponse = await api.get("/users/dashboard");
         const topUsersResponse = await api.get("/users/top-users");
 
@@ -38,7 +46,6 @@ const Dashboard = () => {
       } catch (err) {
         console.error("Error fetching data:", err);
         if (err.response?.status === 401) {
-          // Handle token expiration
           setError("Access token expired. Please log in again.");
           localStorage.removeItem("authToken");
           localStorage.removeItem("refreshToken");
@@ -46,16 +53,13 @@ const Dashboard = () => {
         } else {
           setError(err.response?.data?.detail || "Failed to load dashboard data.");
         }
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchData();
   }, []);
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+
 
   const chartData = {
     labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
@@ -139,7 +143,7 @@ const Dashboard = () => {
         overflow: "hidden",
       }}
     >
-      {/* <Sidebar />  */}
+      <Sidebar /> 
       <Box
         sx={{
           flex: 1,
