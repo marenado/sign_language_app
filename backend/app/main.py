@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
-from fastapi.middleware.cors import CORSMiddleware  
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles  
-from app.routers import admin
+from app.routers import admin, achievements
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -31,7 +31,7 @@ app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(dictionary.router)
-
+app.include_router(achievements.router)
 
 # Static file serving for media
 media_directory = "media"

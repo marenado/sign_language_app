@@ -44,7 +44,7 @@ const ModulesPage = () => {
       console.error("Failed to fetch modules:", err);
       if (err.message === "No token found, user is not authenticated.") {
         localStorage.removeItem("authToken");
-        window.location.href = "/login";
+        window.location.href = "/";
       } else {
         setError("Failed to fetch modules. Please try again.");
       }

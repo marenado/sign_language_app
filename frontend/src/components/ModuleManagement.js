@@ -51,6 +51,7 @@ const ModuleManagement = () => {
   const [moduleToDelete, setModuleToDelete] = useState(null);
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [tasks, setTasks] = useState({});
+  const [loading, setLoading] = useState(true);
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskData, setTaskData] = useState({
@@ -427,7 +428,7 @@ const searchVideos = async () => {
       if (error.response?.status === 401) {
         localStorage.removeItem("authToken");
         setIsAuthenticated(false);
-        navigate("/login");
+        navigate("/");
       } else {
         console.error("Error fetching modules:", error);
       }
