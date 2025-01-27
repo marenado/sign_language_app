@@ -11,3 +11,6 @@ class Language(Base):
     name = Column(String(100), nullable=False)
 
 
+    videos = relationship("VideoReference", back_populates="language")
+
+

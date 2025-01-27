@@ -11,20 +11,39 @@ const DictionaryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [alphabetFilter, setAlphabetFilter] = useState("");
   const [dictionaryItems, setDictionaryItems] = useState([]);
+  const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [languages, setLanguages] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Fetch dictionary data
   useEffect(() => {
-    fetchDictionaryItems();
+    fetchLanguages();
   }, []);
-  
-  const fetchDictionaryItems = async () => {
+
+  useEffect(() => {
+    if (selectedLanguage) {
+      fetchDictionaryItems(selectedLanguage);
+    }
+  }, [selectedLanguage]);
+
+  const fetchLanguages = async () => {
+    try {
+      const response = await api.get("/dictionary/languages");
+      setLanguages(response.data);
+      setSelectedLanguage(response.data[0]); // Default to the first language
+    } catch (err) {
+      console.error("Failed to fetch languages:", err);
+      setError("Failed to load languages.");
+    }
+  };
+
+  const fetchDictionaryItems = async (language) => {
     try {
       setLoading(true);
-      const response = await api.get("/dictionary"); // Use the `api` instance
-      console.log("Dictionary items:", response.data); // Log the received URLs
+      const response = await api.get(`/dictionary?language=${language}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+      });
       setDictionaryItems(response.data);
       setError("");
     } catch (err) {
@@ -34,10 +53,7 @@ const DictionaryPage = () => {
       setLoading(false);
     }
   };
-  
-  
 
-  // Filtered dictionary items based on search and alphabet filter
   const filteredItems = dictionaryItems.filter((item) => {
     const matchesSearch = searchTerm
       ? item.gloss.toLowerCase().includes(searchTerm.toLowerCase())
@@ -52,70 +68,78 @@ const DictionaryPage = () => {
     <PageContainer>
       <Sidebar />
       <Content>
-        <Header>
-          <SearchBarContainer>
-            <SearchBar
-              type="text"
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <SearchIconWrapper>
-              <SearchIcon style={{ color: "#888" }} />
-            </SearchIconWrapper>
-          </SearchBarContainer>
-          <AlphabetFilter>
-            {Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ").map((letter) => (
-              <Letter
-                key={letter}
-                selected={alphabetFilter === letter}
-                onClick={() => {
-                  setAlphabetFilter(letter === alphabetFilter ? "" : letter);
-                }}
-              >
-                {letter}
-              </Letter>
-            ))}
-          </AlphabetFilter>
-        </Header>
-        {loading ? (
-          <Message>Loading...</Message>
-        ) : error ? (
-          <Message>{error}</Message>
-        ) : (
-          <ContentContainer>
-            <DictionaryList>
-              {filteredItems.map((item) => (
-                <DictionaryItem
-                  key={item.gloss}
-                  onClick={() => setSelectedItem(item)}
-                  selected={selectedItem?.gloss === item.gloss}
-                >
-                  {item.gloss}
-                </DictionaryItem>
-              ))}
-            </DictionaryList>
-            {selectedItem && (
-  <VideoSection>
-    <WordTitle>{selectedItem.gloss}</WordTitle>
-    <VideoContainer>
-      {/* Ensure the video auto-plays, loops, and is standardized in size */}
-      <Video
-        key={selectedItem.video_url} // Force re-render when URL changes
-        controls
-        autoPlay
-        loop
+      <Header>
+  <TopControls>
+    <LanguageSelector
+      value={selectedLanguage}
+      onChange={(e) => setSelectedLanguage(e.target.value)}
+    >
+      {languages.map((lang) => (
+        <option key={lang} value={lang}>
+          {lang}
+        </option>
+      ))}
+    </LanguageSelector>
+    <SearchBarContainer>
+      <SearchBar
+        type="text"
+        placeholder="Search..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+      <SearchIconWrapper>
+        <SearchIcon style={{ color: "#888" }} />
+      </SearchIconWrapper>
+    </SearchBarContainer>
+  </TopControls>
+  <AlphabetFilter>
+    {Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ").map((letter) => (
+      <Letter
+        key={letter}
+        selected={alphabetFilter === letter}
+        onClick={() =>
+          setAlphabetFilter(letter === alphabetFilter ? "" : letter)
+        }
       >
-        <source src={selectedItem.video_url} type="video/mp4" />
-        Your browser does not support the video tag.
-      </Video>
-    </VideoContainer>
-  </VideoSection>
+        {letter}
+      </Letter>
+    ))}
+  </AlphabetFilter>
+</Header>
+
+{loading ? (
+  <Message>Loading...</Message>
+) : error ? (
+  <Message>{error}</Message>
+) : filteredItems.length === 0 ? (
+  <Message>Sorry, no content available for the selected language.</Message>
+) : (
+  <ContentContainer>
+    <DictionaryList>
+      {filteredItems.map((item) => (
+        <DictionaryItem
+          key={item.gloss}
+          onClick={() => setSelectedItem(item)}
+          selected={selectedItem?.gloss === item.gloss}
+        >
+          {item.gloss}
+        </DictionaryItem>
+      ))}
+    </DictionaryList>
+    {selectedItem && (
+      <VideoSection>
+        <WordTitle>{selectedItem.gloss}</WordTitle>
+        <VideoContainer>
+          <Video key={selectedItem.video_url} controls autoPlay loop>
+            <source src={selectedItem.video_url} type="video/mp4" />
+            Your browser does not support the video tag.
+          </Video>
+        </VideoContainer>
+      </VideoSection>
+    )}
+  </ContentContainer>
 )}
 
-
-          </ContentContainer>
-        )}
       </Content>
     </PageContainer>
   );
@@ -123,41 +147,40 @@ const DictionaryPage = () => {
 
 export default DictionaryPage;
 
-
-// const SidebarWidth = "250px"; // Sidebar's fixed width
-
+// Styled Components
 const PageContainer = styled.div`
   display: flex;
-  height: 100vh; /* Full viewport height */
-  width: 100vw; /* Full viewport width */
-  overflow: hidden; /* Prevent scrolling */
+  height: 100vh; /* Ensure it takes the full viewport height */
+  width: 100vw; /* Ensure it takes the full viewport width */
+  overflow: hidden; /* Disable scrolling for this container */
 `;
 
-
-
-
 const Content = styled.div`
-  flex: 1; /* Take the remaining width */
-  overflow-y: auto; /* Allow vertical scrolling for content */
+  flex: 1;
+  overflow: hidden; /* Disable scrolling in the content area */
   background-color: #f9f9f9;
-  padding: 20px; /* Add some padding to the content area */
 `;
 
 const Header = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-direction: column; /* Stack items vertically */
   align-items: center;
   margin-bottom: 2rem;
-  margin-top: 1rem; /* Adjust this to move the search bar lower */
+  margin-top: 1rem;
+  gap: 1rem; /* Add space between sections (dropdown+search and alphabet) */
 `;
+
+
+
 const SearchBarContainer = styled.div`
   position: relative;
   width: 100%;
   max-width: 500px;
 `;
 
+
 const SearchBar = styled.input`
-  width: 90%;
+  width: 100%;
   padding: 0.5rem 2.5rem 0.5rem 1rem; /* Add space for the icon */
   font-size: 1rem;
   border: 1px solid #ccc;
@@ -166,19 +189,25 @@ const SearchBar = styled.input`
 
 const SearchIconWrapper = styled.div`
   position: absolute;
-  top: 50%; /* Vertically center */
-  right: 10px; /* Position from the right edge */
-  transform: translateY(-50%); /* Correct vertical offset */
-  height: 24px; /* Match the icon height */
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
   display: flex;
-  align-items: center; /* Ensures the icon centers vertically */
+  align-items: center;
 `;
-
 const SearchWrapper = styled.div`
   position: relative; /* Enable positioning for the icon */
   width: 100%;
   max-width: 500px;
   margin-top: 1rem;
+`;
+
+const TopControls = styled.div`
+  display: flex;
+  flex-direction: row; /* Align language selector and search bar horizontally */
+  justify-content: center;
+  align-items: center;
+  gap: 1rem; /* Add space between dropdown and search bar */
 `;
 
 
@@ -187,7 +216,7 @@ const AlphabetFilter = styled.div`
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  margin-top: 1rem;
+  gap: 0.01rem; /* Add some spacing between letters */
 `;
 
 const Letter = styled.button`
@@ -208,15 +237,13 @@ const Letter = styled.button`
 
 const ContentContainer = styled.div`
   display: flex;
-  flex: 1; /* Take up all available vertical space */
   gap: 2rem;
-  overflow: hidden; /* Prevent scrolling */
 `;
 
-
 const DictionaryList = styled.div`
-  flex: 1; /* Let the list take proportional space */
-  overflow-y: auto; /* Optional if the content overflows within its box */
+  flex: 1;
+  max-height: 500px;
+  overflow-y: auto;
   border: 1px solid #ccc;
   border-radius: 5px;
   background-color: #fff;
@@ -239,13 +266,12 @@ const DictionaryItem = styled.div`
 `;
 
 const VideoSection = styled.div`
-  flex: 2; /* Let the video section take more space */
+  flex: 2;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  overflow: hidden;
 `;
+
 const WordTitle = styled.h1`
   font-size: 2.5rem;
   margin-bottom: 1rem;
@@ -276,4 +302,12 @@ const Message = styled.div`
   text-align: center;
   font-size: 1.2rem;
   color: #666;
+`;
+
+const LanguageSelector = styled.select`
+  padding: 0.5rem;
+  font-size: 1rem;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  max-width: 200px; /* Optional to limit width */
 `;

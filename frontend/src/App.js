@@ -176,9 +176,9 @@ const App = () => {
 
 <Route path="/tasks/:taskId" element={<TasksPage />} />
 <Route
-      path="/dictionary"
-      element={!isAdmin ? <DictionaryPage /> : <div>Access Denied</div>} // Added DictionaryPage route
-    />
+  path="/dictionary"
+  element={<DictionaryPage />} // Allow all authenticated users to access
+/>
 
 
 
