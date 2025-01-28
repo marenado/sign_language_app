@@ -16,7 +16,7 @@ const ModulesPage = () => {
   // Fetch languages
   const fetchLanguages = async () => {
     try {
-      const response = await axios.get("http://127.0.0.1:8000/users/languages");
+      const response = await axios.get("https://signlearn.onrender.com/users/languages");
       setLanguages(response.data);
     } catch (err) {
       console.error("Failed to fetch languages:", err);
@@ -30,7 +30,7 @@ const ModulesPage = () => {
       if (!token) throw new Error("No token found, user is not authenticated.");
 
       const response = await axios.get(
-        `http://127.0.0.1:8000/users/modules?language_id=${languageId}`,
+        `https://signlearn.onrender.com/users/modules?language_id=${languageId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -68,7 +68,7 @@ const ModulesPage = () => {
   const handleLessonClick = async (lessonId) => {
     try {
       const response = await axios.get(
-        `http://127.0.0.1:8000/users/lessons/${lessonId}/tasks`,
+        `https://signlearn.onrender.com/users/lessons/${lessonId}/tasks`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("authToken")}`,

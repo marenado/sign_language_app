@@ -27,8 +27,8 @@ const Settings = () => {
         if (!token) throw new Error("No authentication token found.");
   
         const apiEndpoint = isAdmin
-          ? "http://127.0.0.1:8000/admin/settings" // Admin-specific settings
-          : "http://127.0.0.1:8000/users/profile"; // Regular user settings
+          ? "https://signlearn.onrender.com/admin/settings" // Admin-specific settings
+          : "https://signlearn.onrender.com/users/profile"; // Regular user settings
   
         const response = await axios.get(apiEndpoint, {
           headers: {
@@ -69,8 +69,8 @@ const Settings = () => {
   
       const apiEndpoint =
         userData.role === "admin"
-          ? "http://127.0.0.1:8000/admin/settings"
-          : "http://127.0.0.1:8000/users/settings";
+          ? "https://signlearn.onrender.com/admin/settings"
+          : "https://signlearn.onrender.com/users/settings";
   
       await axios.put(apiEndpoint, payload, {
         headers: {
@@ -101,7 +101,7 @@ const Settings = () => {
       if (!token) throw new Error("No authentication token found.");
 
       const response = await axios.put(
-        "http://127.0.0.1:8000/users/update-avatar",
+        "https://signlearn.onrender.com/users/update-avatar",
         formData,
         {
           headers: {

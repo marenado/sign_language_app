@@ -16,7 +16,7 @@ const handleResetPassword = async (e) => {
     const token = searchParams.get("token");
   
     try {
-      await axios.post("http://127.0.0.1:8000/auth/reset-password", {
+      await axios.post("https://signlearn.onrender.com/auth/reset-password", {
         token,
         new_password: password,
       });

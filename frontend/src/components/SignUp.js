@@ -20,7 +20,7 @@ const SignUp = () => {
 
   const handleEmailValidation = async (email) => {
     try {
-      const response = await axios.post("http://127.0.0.1:8000/auth/validate-email", { email });
+      const response = await axios.post("https://signlearn.onrender.com/auth/validate-email", { email });
       console.log(response.data); // Debugging: Check the response format in the console
   
       if (response.data.valid) {

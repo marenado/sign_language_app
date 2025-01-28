@@ -12,7 +12,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       console.log("Sending email:", email); // Add this line for debugging
-      await axios.post("http://127.0.0.1:8000/auth/forgot-password", { email });
+      await axios.post("https://signlearn.onrender.com/auth/forgot-password", { email });
       setMessage("Password reset link sent! Check your email.");
     } catch (error) {
       const errorResponse = error.response?.data?.detail;
