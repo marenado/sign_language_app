@@ -78,7 +78,7 @@ const ModulesPage = () => {
 
       const tasks = response.data;
       if (tasks.length > 0) {
-        navigate(`/tasks/${tasks[0].task_id}`); // Navigate to the first task
+        navigate(`/lessons/${lessonId}/tasks/${tasks[0].task_id}`); // Navigate to the first task
       } else {
         alert("No tasks available for this lesson.");
       }

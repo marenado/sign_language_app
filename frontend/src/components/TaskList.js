@@ -43,37 +43,33 @@ const [newPair, setNewPair] = useState({}); // For temporarily storing a new pai
 
 
 const saveTask = async () => {
-    const sanitizedPoints = Math.max(taskData.points, 0); // Ensure points are non-negative
+    const sanitizedPoints = taskData.task_type === "sign_presentation" ? 0 : Math.max(taskData.points, 0); // Ensure points are only for other tasks
     const payload = {
       task_type: taskData.task_type,
       content: taskData.content,
-      points: taskData.task_type === "sign_presentation" ? 0 : sanitizedPoints,
+      points: sanitizedPoints,
       lesson_id: lessonId,
       version: taskData.version || 1,
       video_ids: taskData.content.video_id ? [taskData.content.video_id] : [],
-      correct_answer:
-        taskData.task_type === "sign_presentation" ? {} : taskData.correct_answer || {},
+      correct_answer: taskData.task_type === "sign_presentation" ? {} : taskData.correct_answer || {},
     };
-  
+
     try {
       if (taskData.task_id) {
-        // Update task
         await axios.put(`${BASE_URL}/admin/tasks/${taskData.task_id}`, payload, {
           headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
         });
       } else {
-        // Create new task
         await axios.post(`${BASE_URL}/admin/tasks`, payload, {
           headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
         });
       }
-      await fetchTasks(); // Refresh tasks
-      closeModal(); // Close modal
+      await fetchTasks();
+      closeModal();
     } catch (error) {
       console.error("Error saving task:", error.response?.data || error.message);
     }
   };
-  
   
 
 
@@ -197,11 +193,26 @@ useEffect(() => {
     setIsModalOpen(true); // Open the modal for editing
   };
   
-  
-  
   const handleTaskTypeChange = (type) => {
-    setTaskData((prev) => ({ ...prev, task_type: type, content: {}, correct_answer: "" }));
+    setTaskData((prev) => ({
+      ...prev,
+      task_type: type,
+      content: {},
+      correct_answer: type === "video_to_sign" ? "" : {},
+      points: type === "sign_presentation" ? 0 : prev.points, // Set points only for applicable tasks
+    }));
   };
+
+  
+//   const handleTaskTypeChange = (type) => {
+//     setTaskData((prev) => ({
+//       ...prev,
+//       task_type: type,
+//       content: {},
+//       correct_answer: type === "video_to_sign" ? "" : {}, // Ensure correct_answer is set for video_to_sign
+//     }));
+//   };
+  
 
   const createTask = async () => {
     try {
@@ -433,7 +444,8 @@ useEffect(() => {
           setTaskData((prev) => {
             const updatedOptions = [...(prev.content.options || [])];
             updatedOptions[index] = e.target.value;
-            return { ...prev, content: { ...prev.content, options: updatedOptions } };
+            return { ...prev, content: { ...prev.content, options: updatedOptions } 
+        };
           })
         }
         sx={{
@@ -862,7 +874,7 @@ useEffect(() => {
               label="Gesture Description"
               value={taskData.content.description || ""}
               onChange={(e) =>
-                setTaskData((prev) => ({ ...prev, content: { description: e.target.value } }))
+                setTaskData((prev) => ({ ...prev, content: { description: e.target.value },  points: Math.max(0, Number(e.target.value)), }))
               }
               sx={{ marginBottom: "15px" }}
             />
@@ -1026,7 +1038,7 @@ useEffect(() => {
                           setTaskData((prev) => {
                             const updatedOptions = [...(prev.content.options || [])];
                             updatedOptions[index] = e.target.value;
-                            return { ...prev, content: { ...prev.content, options: updatedOptions } };
+                            return { ...prev, content: { ...prev.content, options: updatedOptions },  points: Math.max(0, Number(e.target.value)),};
                           })
                         }
                         sx={{
@@ -1043,7 +1055,10 @@ useEffect(() => {
                         onClick={() =>
                           setTaskData((prev) => ({
                             ...prev,
+                        
                             correct_answer: { option },
+                            
+
                           }))
                         }
                         sx={{
@@ -1119,7 +1134,10 @@ useEffect(() => {
                   onChange={(e) =>
                     setTaskData((prev) => ({
                       ...prev,
-                      content: { ...prev.content, time_limit: Math.max(0, e.target.value) },
+                      content: { ...prev.content, time_limit: Math.max(0, e.target.value),  points: Math.max(0, Number(e.target.value)),
+
+
+                       },
                     }))
                   }
                   sx={{ marginBottom: "15px" }}
@@ -1302,6 +1320,12 @@ useEffect(() => {
             Task Type: {task.task_type.replace(/_/g, " ")}
           </Typography>
 
+          {task.task_type !== "sign_presentation" && (
+    <Typography variant="body2" sx={{ fontWeight: "bold", color: "#4a148c" }}>
+      Points: {task.points}
+    </Typography>
+  )}
+
           {/* Display task content differently for matching tasks */}
           {task.task_type === "matching" && task.content?.pairs ? (
             task.content.pairs.length > 0 ? (
@@ -1366,74 +1390,95 @@ useEffect(() => {
   </Box>
 
   <Modal open={isModalOpen} onClose={closeModal}>
-    <Box
-      sx={{
-        position: "absolute",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: "500px",
-        maxHeight: "80vh",
-        overflowY: "auto",
-        backgroundColor: "white",
-        padding: "20px",
-        borderRadius: "10px",
-        boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
-      }}
+  <Box
+    sx={{
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "500px",
+      maxHeight: "80vh",
+      overflowY: "auto",
+      backgroundColor: "white",
+      padding: "20px",
+      borderRadius: "10px",
+      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+    }}
+  >
+    <Typography variant="h6" sx={{ marginBottom: "20px", textAlign: "center" }}>
+      {taskData.task_id ? "Edit Task" : "Add New Task"}
+    </Typography>
+
+    {/* Task Type Selector */}
+    <Select
+      fullWidth
+      value={taskData.task_type}
+      onChange={(e) => handleTaskTypeChange(e.target.value)}
+      displayEmpty
+      sx={{ marginBottom: "15px" }}
     >
-      <Typography variant="h6" sx={{ marginBottom: "20px", textAlign: "center" }}>
-        {taskData.task_id ? "Edit Task" : "Add New Task"}
-      </Typography>
-
-      {/* Task Type Selector */}
-      <Select
-        fullWidth
-        value={taskData.task_type}
-        onChange={(e) => handleTaskTypeChange(e.target.value)}
-        displayEmpty
-        sx={{ marginBottom: "15px" }}
-      >
-        <MenuItem value="" disabled>
-          Select Task Type
+      <MenuItem value="" disabled>
+        Select Task Type
+      </MenuItem>
+      {taskTypeOptions.map((option) => (
+        <MenuItem key={option} value={option}>
+          {option.replace(/_/g, " ")}
         </MenuItem>
-        {taskTypeOptions.map((option) => (
-          <MenuItem key={option} value={option}>
-            {option.replace(/_/g, " ")}
-          </MenuItem>
-        ))}
-      </Select>
+      ))}
+    </Select>
 
-      {/* Dynamic Inputs Based on Task Type */}
-      {renderTaskInputs()}
+    {/* Dynamic Inputs Based on Task Type */}
+    {renderTaskInputs()}
 
-      {/* Save and Cancel Buttons */}
-      <Box sx={{ display: "flex", gap: "10px" }}>
-        <Button
-          onClick={saveTask}
-          sx={{
-            flex: 1,
-            backgroundColor: "#5b21b6",
-            color: "#fff",
-            "&:hover": { backgroundColor: "#4a148c" },
-          }}
-        >
-          Save Task
-        </Button>
-        <Button
-          onClick={closeModal}
-          sx={{
-            flex: 1,
-            backgroundColor: "#fff",
-            color: "#5b21b6",
-            border: "2px solid #5b21b6",
-            "&:hover": { backgroundColor: "#f3e8ff" },
-          }}
-        >
-          Cancel
-        </Button>
-      </Box>
+    {/* ✅ Add Points Field (Only if Task Type is NOT Sign Presentation) */}
+    {taskData.task_type !== "sign_presentation" && (
+      <TextField
+      fullWidth
+      label="Points"
+      type="number"
+      value={taskData.points}
+      onChange={(e) => {
+        let value = e.target.value.replace(/^0+/, ""); // Remove leading zeros
+        value = value === "" ? "0" : value; // Ensure it doesn’t become empty
+        setTaskData((prev) => ({
+          ...prev,
+          points: parseInt(value, 10) || 0, // Convert to number safely
+        }));
+      }}
+      sx={{ marginBottom: "15px" }}
+    />
+    
+    )}
+
+    {/* Save and Cancel Buttons */}
+    <Box sx={{ display: "flex", gap: "10px" }}>
+      <Button
+        onClick={saveTask}
+        sx={{
+          flex: 1,
+          backgroundColor: "#5b21b6",
+          color: "#fff",
+          "&:hover": { backgroundColor: "#4a148c" },
+        }}
+      >
+        Save Task
+      </Button>
+      <Button
+        onClick={closeModal}
+        sx={{
+          flex: 1,
+          backgroundColor: "#fff",
+          color: "#5b21b6",
+          border: "2px solid #5b21b6",
+          "&:hover": { backgroundColor: "#f3e8ff" },
+        }}
+      >
+        Cancel
+      </Button>
     </Box>
-  </Modal>
+  </Box>
+</Modal>
+
 </Box>
     
   );

@@ -174,7 +174,7 @@ const App = () => {
   element={!isAdmin ? <ModulePage /> : <div>Access Denied</div>}
 />
 
-<Route path="/tasks/:taskId" element={<TasksPage />} />
+<Route path="/lessons/:lessonId/tasks/:taskId" element={<TasksPage />} />
 <Route
   path="/dictionary"
   element={<DictionaryPage />} // Allow all authenticated users to access

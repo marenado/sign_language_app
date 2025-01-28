@@ -8,7 +8,7 @@ const BASE_URL = "http://localhost:8000";
 const COLORS = ["#007bff", "#28a745", "#ff7f0e", "#17a2b8"]; // Colors for matching tasks
 
 const TasksPage = () => {
-  const { taskId } = useParams();
+ // const { taskId } = useParams();
   const [task, setTask] = useState(null);
   const [taskIds, setTaskIds] = useState([]);
   const [videoUrl, setVideoUrl] = useState("");
@@ -19,48 +19,110 @@ const TasksPage = () => {
   const [videoHighlightMap, setVideoHighlightMap] = useState({});
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
+  const [userProgress, setUserProgress] = useState([]); // Track completed task IDss
+  const [showFeedback, setShowFeedback] = useState(false);
+  const { lessonId, taskId } = useParams(); // Extract lessonId and taskId
+const authToken = localStorage.getItem("authToken"); 
   const [isLoading, setIsLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const navigate = useNavigate();
 
   const fetchTask = async () => {
-    try {
-      const [taskResponse, lessonTasksResponse] = await Promise.all([
-        axios.get(`${BASE_URL}/users/tasks/${taskId}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }),
-        axios.get(`${BASE_URL}/users/lessons/1/tasks`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }),
-      ]);
-
-      const taskData = taskResponse.data;
-      const lessonTasks = lessonTasksResponse.data;
-
-      // Reset state for new task
-      resetTaskState();
-
-      // Handle video URL
-      const videoId = taskData?.content?.video_id;
-      setVideoUrl(videoId ? `https://asl-video-dataset.s3.us-east-1.amazonaws.com/videos/${videoId}.mp4` : "");
-
-      // Set timer for speed challenge
-      if (taskData.task_type === "sign_speed_challenge") {
-        setTimeLeft(taskData.content.time_limit);
-        setIsTimerRunning(true);
-      }
-
-      setTask(taskData);
-      setTaskIds(lessonTasks.map((t) => t.task_id));
-      setIsLoading(false);
-    } catch (err) {
-      console.error("Error fetching task:", err);
-      setError("Failed to load the task. Please try again.");
-      setIsLoading(false);
+    if (!lessonId || !taskId) {
+        console.error("Invalid lessonId or taskId:", { lessonId, taskId });
+        setError("Invalid lesson or task. Please try again.");
+        return;
     }
-  };
 
+    if (!authToken) {
+        console.error("No auth token found!");
+        setError("Authentication error. Please log in again.");
+        return;
+    }
+
+    try {
+        const [taskResponse, lessonTasksResponse] = await Promise.all([
+            axios.get(`${BASE_URL}/users/tasks/${taskId}`, {
+                headers: { Authorization: `Bearer ${authToken}` },
+            }),
+            axios.get(`${BASE_URL}/users/lessons/${lessonId}/tasks`, {
+                headers: { Authorization: `Bearer ${authToken}` },
+            }),
+        ]);
+
+        const taskData = taskResponse.data;
+        console.log("Fetched Task:", taskData); // Debugging Task Response
+        console.log("Lesson Tasks:", lessonTasksResponse.data);
+
+        setTask(taskData);
+        setTaskIds(lessonTasksResponse.data.map((t) => t.task_id));
+
+        // Correctly set video URL
+        const videoId =
+            taskData?.content?.video_id || // Use video_id from content
+            (taskData?.videos?.length > 0 ? taskData.videos[0].video_id : null);
+        if (videoId) {
+            setVideoUrl(`https://asl-video-dataset.s3.us-east-1.amazonaws.com/videos/${videoId}.mp4`);
+        } else {
+            console.warn("No video ID found for this task. Check API response.", taskData);
+            setVideoUrl(""); // Ensure no broken video placeholder
+        }
+
+        setIsLoading(false);
+    } catch (err) {
+        console.error("Error fetching task:", err);
+        setError("Failed to load the task. Please try again.");
+        setIsLoading(false);
+    }
+};
+
+
+// Fetch task on component mount
+useEffect(() => {
+    if (lessonId && taskId) {
+        fetchTask();
+    }
+}, [lessonId, taskId]);
+ // Ensure API is only called when IDs exist
+  
+  // Function to check if the user has completed the previous task
+  const userHasCompletedPreviousTask = (index) => {
+    if (index === 0) return true; // First task is always accessible
+    return userProgress.includes(taskIds[index - 1]); // Check if previous task is completed
+  };
+  
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    window.onpopstate = function () {
+      window.history.pushState(null, "", window.location.href);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (task?.task_type === "sign_speed_challenge" && task?.content?.time_limit) {
+        setTimeLeft(task.content.time_limit);
+        setIsTimerRunning(true);
+    }
+}, [task]);
+
+
+useEffect(() => {
+    if (isTimerRunning && timeLeft > 0) {
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }
+
+    if (timeLeft === 0 && isTimerRunning) {
+        setIsTimerRunning(false);
+        handleTaskFeedback(false, task?.correct_answer?.option || "Unknown");
+    }
+}, [timeLeft, isTimerRunning]);
+
+  
   const resetTaskState = () => {
     setVideoWordMap({});
     setVideoHighlightMap({});
@@ -76,6 +138,8 @@ const TasksPage = () => {
     fetchTask();
   }, [taskId]);
 
+    
+
   useEffect(() => {
     if (isTimerRunning && timeLeft > 0) {
       const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
@@ -87,14 +151,22 @@ const TasksPage = () => {
     }
   }, [timeLeft, isTimerRunning]);
 
-  const handleTaskFeedback = (isCorrect, message) => {
-    setFeedback(isCorrect ? "Correct! Well done!" : message || "Incorrect! Please review your answer.");
+  const handleTaskFeedback = (isCorrect, correctAnswer, message) => {
+    setFeedback(
+      isCorrect
+        ? "Correct! Well done!"
+        : `Incorrect! The correct answer is: ${correctAnswer || "Unknown"}`
+    );
+    setShowFeedback(true);
+  
+    // Hide feedback after 3 seconds
     setTimeout(() => {
-      setFeedback("");
+      setShowFeedback(false);
       handleNextTask();
     }, 3000);
   };
 
+  
   const markLessonComplete = async () => {
     try {
       await axios.post(
@@ -124,8 +196,15 @@ const TasksPage = () => {
       setFeedback("Please select a video first!");
       return;
     }
+
     const colorIndex = Object.keys(videoWordMap).length % COLORS.length;
-    setVideoWordMap((prev) => ({ ...prev, [selectedVideo]: { word, color: COLORS[colorIndex] } }));
+    const assignedColor = COLORS[colorIndex];
+
+    setVideoWordMap((prev) => ({
+      ...prev,
+      [selectedVideo]: { word, color: assignedColor },
+    }));
+
     setSelectedVideo(null);
   };
 
@@ -133,32 +212,63 @@ const TasksPage = () => {
     const isCorrect = task?.content?.pairs.every(
       (pair) => videoWordMap[pair.video.id]?.word === pair.word
     );
-    handleTaskFeedback(isCorrect, "Incorrect! Please review your matches.");
+
+    setFeedback(isCorrect ? "Correct! Well done!" : "Incorrect! Please review your matches.");
+    setTimeout(() => {
+      setFeedback("");
+      handleNextTask();
+    }, 3000);
   };
 
   const handleSubmitRecognitionTask = () => {
-    if (!selectedOption) return setFeedback("Please select an option.");
+    if (!selectedOption) {
+      setFeedback("Please select an option.");
+      setShowFeedback(true);
+      setTimeout(() => setShowFeedback(false), 3000);
+      return;
+    }
+  
+    const correctAnswer = task?.correct_answer?.option || "Unknown"; // Ensure fallback value
     const isCorrect = selectedOption === task?.correct_answer?.option;
-    handleTaskFeedback(isCorrect, `Incorrect! The correct answer is: ${task?.correct_answer?.option}`);
+  
+    handleTaskFeedback(isCorrect, correctAnswer, `Incorrect! The correct answer is: ${correctAnswer}`);
   };
+  
+
 
   const handleSubmitVideoToSignTask = () => {
     const correctAnswer = task?.videos?.[0]?.gloss || "";
+  
     const isCorrect = userInput.trim().toLowerCase() === correctAnswer.toLowerCase();
-    handleTaskFeedback(isCorrect, `Incorrect! The correct answer is: ${correctAnswer}`);
+    const message = isCorrect
+      ? "Correct! Great job!"
+      : `Incorrect! The correct answer is: ${correctAnswer}`;
+  
+    handleTaskFeedback(isCorrect, message); // Use handleTaskFeedback
   };
+  
 
   const handleSubmitSpeedChallenge = () => {
-    if (!selectedOption) return setFeedback("Please select an option.");
+    if (!selectedOption) {
+        setFeedback("Please select an option.");
+        setShowFeedback(true);
+        setTimeout(() => setShowFeedback(false), 3000);
+        return;
+    }
+
     const isCorrect = selectedOption === task?.correct_answer?.option;
-    setIsTimerRunning(false);
-    handleTaskFeedback(isCorrect, `Incorrect! The correct answer is: ${task?.correct_answer?.option}`);
-  };
+    const message = isCorrect
+        ? "Correct! Well done!"
+        : `Incorrect!`;
+
+    setIsTimerRunning(false); // Stop the timer
+    handleTaskFeedback(isCorrect, message);
+};
 
   const handleNextTask = () => {
     const currentIndex = taskIds.indexOf(parseInt(taskId));
     if (currentIndex >= 0 && currentIndex < taskIds.length - 1) {
-      navigate(`/tasks/${taskIds[currentIndex + 1]}`);
+        navigate(`/lessons/${lessonId}/tasks/${taskIds[currentIndex+1]}`);
     } else {
       markLessonComplete();
     }
@@ -171,8 +281,21 @@ const TasksPage = () => {
     <PageContainer>
       <Sidebar />
       <MainContent>
-        <HeaderContainer>
-          <TaskHeader>{task?.task_type?.replace("_", " ").toUpperCase() || "Task"}</TaskHeader>
+        
+      <HeaderContainer>
+          <TaskHeader>
+            {task?.task_type === "video_recognition"
+              ? "Recognize the Sign"
+              : task?.task_type === "sign_presentation"
+              ? "Learn the Sign"
+              : task?.task_type === "matching"
+              ? "Match the Sign to the Word"
+              : task?.task_type === "video_to_sign"
+              ? "Type the Sign"
+              : task?.task_type === "sign_speed_challenge"
+              ? "Sign Speed Challenge"
+              : "Task"}
+          </TaskHeader>
         </HeaderContainer>
         <ContentContainer>
           {task?.task_type === "sign_presentation" && (
@@ -207,16 +330,109 @@ const TasksPage = () => {
                 ))}
               </OptionsContainer>
               <SubmitButton onClick={handleSubmitRecognitionTask}>Check</SubmitButton>
-              {feedback && <PopupMessage>{feedback}</PopupMessage>}
+              {showFeedback && <PopupMessage>{feedback}</PopupMessage>}
             </RecognitionContainer>
           )}
-          {/* Add other task type components (e.g., matching, speed challenge) as shown in the original logic */}
+        {task?.task_type === "matching" && (
+            <MatchingContainer>
+              <TaskInstruction>
+                Match the videos with their corresponding words:
+              </TaskInstruction>
+              <VideosContainer>
+                {task?.content?.pairs?.map((pair, index) => (
+                  <VideoItem
+                    key={index}
+                    onClick={() => handleVideoSelect(pair.video.id)}
+                    selected={selectedVideo === pair.video.id}
+                    highlightColor={videoHighlightMap[pair.video.id] || "#ddd"}
+                  >
+                    <Video autoPlay loop muted>
+                      <source
+                        src={`https://asl-video-dataset.s3.us-east-1.amazonaws.com/videos/${pair.video.id}.mp4`}
+
+                        type="video/mp4"
+                      />
+                      Your browser does not support the video tag.
+                    </Video>
+                  </VideoItem>
+                ))}
+              </VideosContainer>
+              <WordsContainer>
+                {task?.content?.pairs?.map((pair, index) => (
+                  <WordButton
+                    key={index}
+                    onClick={() => handleWordSelect(pair.word)}
+                    selected={Object.values(videoWordMap)
+                      .map((map) => map.word)
+                      .includes(pair.word)}
+                    highlightColor={
+                      Object.values(videoWordMap).find((map) => map.word === pair.word)?.color ||
+                      "#e0e0e0"
+                    }
+                  >
+                    {pair.word}
+                  </WordButton>
+                ))}
+              </WordsContainer>
+              <SubmitButton onClick={handleSubmitMatchingTask}>Check</SubmitButton>
+              {feedback && <PopupMessage>{feedback}</PopupMessage>}
+            </MatchingContainer>
+          )}
+          {task?.task_type === "video_to_sign" && (
+            <VideoToSignContainer>
+              <VideoContainer>
+                <Video autoPlay loop muted>
+                  <source src={videoUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </Video>
+              </VideoContainer>
+              <InputContainer>
+                <AnswerInput
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder="Type the sign here..."
+                />
+                <SubmitButton onClick={handleSubmitVideoToSignTask}>Submit</SubmitButton>
+              </InputContainer>
+              {showFeedback && <PopupMessage>{feedback}</PopupMessage>}
+
+            </VideoToSignContainer>
+          )}
+          {task?.task_type === "sign_speed_challenge" && (
+            <SpeedChallengeContainer>
+                {/* <TaskDescription>
+      Watch the video and select the correct sign before time runs out!
+    </TaskDescription> */}
+              <VideoContainer>
+                <Video autoPlay loop muted>
+                  <source src={videoUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </Video>
+              </VideoContainer>
+              <TimerBar>
+                <ProgressBar width={(timeLeft / task.content.time_limit) * 100} />
+              </TimerBar>
+              <OptionsContainer>
+                {task?.content?.options?.map((option) => (
+                  <OptionButton
+                    key={option}
+                    onClick={() => setSelectedOption(option)}
+                    selected={selectedOption === option}
+                  >
+                    {option}
+                  </OptionButton>
+                ))}
+              </OptionsContainer>
+              <SubmitButton onClick={handleSubmitSpeedChallenge}>Check</SubmitButton>
+              {showFeedback && <PopupMessage>{feedback}</PopupMessage>}
+            </SpeedChallengeContainer>
+          )}
         </ContentContainer>
       </MainContent>
     </PageContainer>
   );
 };
-
 export default TasksPage;
 
 // Styled components remain unchanged from the original implementation.
@@ -484,6 +700,17 @@ const SpeedChallengeContainer = styled.div`
   gap: 20px;
 `;
 
+
+
+const TaskDescription = styled.p`
+  font-size: 1.2rem;
+  color: #555;
+  margin-bottom: 10px;
+  text-align: center;
+  width: 90%;
+`;
+
+
 const TimerBar = styled.div`
   width: 100%;
   max-width: 600px;
@@ -492,11 +719,13 @@ const TimerBar = styled.div`
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 20px;
-`;
+  `
+;
 
 const ProgressBar = styled.div`
   height: 100%;
   background-color: #28a745;
   width: ${(props) => props.width}%;
-  transition: width 0.5s ease-in-out;
-`;
+  transition: width 0.5s ease-in-out;`
+;
+

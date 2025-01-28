@@ -51,7 +51,6 @@ const ModuleManagement = () => {
   const [moduleToDelete, setModuleToDelete] = useState(null);
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [tasks, setTasks] = useState({});
-  const [loading, setLoading] = useState(true);
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskData, setTaskData] = useState({
@@ -315,7 +314,7 @@ const searchVideos = async () => {
       setIsAuthenticated(true);
     } else {
       setIsAuthenticated(false);
-      navigate("/");
+      navigate("/login");
     }
   }, [navigate]);
 
@@ -428,7 +427,7 @@ const searchVideos = async () => {
       if (error.response?.status === 401) {
         localStorage.removeItem("authToken");
         setIsAuthenticated(false);
-        navigate("/");
+        navigate("/login");
       } else {
         console.error("Error fetching modules:", error);
       }
@@ -810,9 +809,7 @@ const createTask = async () => {
         boxShadow: "0 4px 8px rgba(91, 33, 182, 0.2)",
         marginBottom: "20px",
         backgroundColor: "#f3e8ff", // Subtle violet background
-        cursor: "pointer",
       }}
-      // onClick={() => navigate(`/admin/lessons/${lessons.lesson_id}/tasks`)} 
     >
       {/* Module Header */}
       <Box
@@ -822,6 +819,8 @@ const createTask = async () => {
           justifyContent: "space-between",
           marginBottom: "15px",
         }}
+
+        // onClick={() => navigate(`/admin/lessons/${lesson.lesson_id}/tasks`)} 
       >
         <Box>
           <Typography variant="h6" sx={{ color: "#000000", fontWeight: "bold" }}>
@@ -968,104 +967,151 @@ const createTask = async () => {
     borderRadius: "10px",
     boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)", // Improved shadow for better contrast
     position: "relative", // For positioning the Fab button
+    //boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)", // Improved shadow for better contrast
+    position: "relative", // For positioning the Fab button
     gridAutoRows: "minmax(100px, auto)", // Automatically adjust row height
     transition: "all 0.3s ease",
   }}
 >
-  {lessons[module.module_id]?.length > 0 ? (
-    lessons[module.module_id].map((lesson) => (
-      <Card
-        key={lesson.lesson_id} // `lesson` is defined here as part of the map iteration
-        id={`lesson-${lesson.lesson_id}`}
-        className="lesson-card"
+{lessons[module.module_id]?.length > 0 ? (
+  lessons[module.module_id].map((lesson) => (
+    <Card
+      key={lesson.lesson_id}
+      id={`lesson-${lesson.lesson_id}`}
+      className="lesson-card"
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        textAlign: "left",
+        padding: "20px",
+        borderRadius: "10px",
+        backgroundColor: "#e9d5ff",
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+        height: "200px",
+        transition: "transform 0.2s, box-shadow 0.2s",
+        "&:hover": {
+          transform: "scale(1.05)",
+          boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+        },
+        position: "relative",
+        cursor: "pointer", // Ensures a pointer cursor for better UX
+      }}
+      onClick={() => navigate(`/admin/lessons/${lesson.lesson_id}/tasks`)} // Navigate to lesson management
+    >
+      {/* Header Section */}
+      <Box
         sx={{
           display: "flex",
-          flexDirection: "column",
           justifyContent: "space-between",
-          textAlign: "left",
-          padding: "20px",
-          borderRadius: "10px",
-          backgroundColor: "#e9d5ff",
-          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-          height: "200px",
-          transition: "transform 0.2s, box-shadow 0.2s",
-          cursor: "pointer", // Add cursor pointer for clarity
+          alignItems: "center",
         }}
-        onClick={() => navigate(`/admin/lessons/${lesson.lesson_id}/tasks`)} // Correctly uses `lesson`
       >
-        {/* Header Section */}
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Typography
-            variant="h6"
-            sx={{
-              fontWeight: "bold",
-              color: "#4a148c",
-              marginBottom: "10px",
-              whiteSpace: "normal",
-              overflow: "visible",
-              textAlign: "left",
-            }}
-          >
-            {lesson.title}
-          </Typography>
-          <IconButton
-            aria-label="settings"
-            onClick={(event) => {
-              event.stopPropagation(); // Prevent card click
-              openMenu(event, lesson.lesson_id);
-            }}
-            sx={{
-              color: "#4a148c",
-              "&:hover": { color: "#5b21b6" },
-            }}
-          >
-            <MoreVertIcon />
-          </IconButton>
-        </Box>
         <Typography
-          variant="body2"
+          variant="h6"
           sx={{
-            color: "#6b7280",
-            marginTop: "10px",
+            fontWeight: "bold",
+            color: "#4a148c",
             marginBottom: "10px",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
+            whiteSpace: "normal",
+            overflow: "visible",
+            textAlign: "left",
           }}
         >
-          {lesson.description || "No description provided."}
+          {lesson.title}
         </Typography>
-        <Typography
-          variant="caption"
+
+        {/* Menu Button */}
+        <IconButton
+          aria-label="settings"
+          onClick={(event) => {
+            event.stopPropagation(); // Prevents the Card's onClick from being triggered
+            openMenu(event, lesson.lesson_id); // Opens the menu
+          }}
           sx={{
-            color: "#6b7280",
-            fontStyle: "italic",
+            color: "#4a148c",
+            "&:hover": { color: "#5b21b6" },
           }}
         >
-          Difficulty: {lesson.difficulty || "N/A"} | Duration: {lesson.duration || "N/A"} mins
-        </Typography>
-      </Card>
-    ))
-  ) : (
-    <Typography
-      variant="body2"
-      sx={{
-        color: "#6b7280",
-        textAlign: "center",
-        gridColumn: "span 3", // Span full width when no lessons are present
-      }}
-    >
-      No lessons available for this module.
-    </Typography>
-  )}
+          <MoreVertIcon />
+        </IconButton>
+
+        {/* Menu */}
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor) && activeLessonId === lesson.lesson_id}
+          onClose={closeMenu}
+          sx={{
+            "& .MuiPaper-root": {
+              backgroundColor: "#ffffff",
+              borderRadius: "10px",
+              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+            },
+          }}
+        >
+          <MenuItem
+            onClick={() => {
+              menuShouldClose.current = false; // Prevent menu from closing
+              console.log("Edit Lesson clicked for ID:", lesson.lesson_id);
+              openEditLessonModal(lesson);
+            }}
+          >
+            Edit Lesson
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              setActiveLessonId(lesson.lesson_id); // Set the correct lesson ID
+              handleDeleteLesson(); // Trigger delete function
+              closeMenu();
+            }}
+          >
+            Delete Lesson
+          </MenuItem>
+        </Menu>
+      </Box>
+
+      {/* Description */}
+      <Typography
+        variant="body2"
+        sx={{
+          color: "#6b7280",
+          marginTop: "10px",
+          marginBottom: "10px",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          display: "-webkit-box",
+          WebkitLineClamp: 2, // Limit to 2 lines
+          WebkitBoxOrient: "vertical",
+        }}
+      >
+        {lesson.description || "No description provided."}
+      </Typography>
+
+      {/* Footer Section */}
+      <Typography
+        variant="caption"
+        sx={{
+          color: "#6b7280",
+          fontStyle: "italic",
+        }}
+      >
+        Difficulty: {lesson.difficulty || "N/A"} | Duration: {lesson.duration || "N/A"} mins
+      </Typography>
+    </Card>
+  ))
+) : (
+  <Typography
+    variant="body2"
+    sx={{
+      color: "#6b7280",
+      textAlign: "center",
+      gridColumn: "span 3", // Span full width when no lessons are present
+    }}
+  >
+    No lessons available for this module.
+  </Typography>
+)}
+
 </Box>
 
 {/* Edit Lesson Modal */}
@@ -1334,5 +1380,4 @@ const createTask = async () => {
 
 
 export default ModuleManagement;
-
 

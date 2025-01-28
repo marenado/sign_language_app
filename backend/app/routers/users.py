@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import Body
 from app.models.task import Task
 from sqlalchemy.sql import text
+from app.schemas.video_reference import VideoReferenceResponse
 from app.schemas.user import TaskCompletionRequest
 from app.database import get_db
 from app.schemas.task import TaskResponse
@@ -458,6 +459,7 @@ async def get_languages(db: AsyncSession = Depends(get_db)):
 
 
 
+
 @router.get("/lessons/{lesson_id}/tasks", response_model=List[TaskResponse])
 async def get_tasks_for_lesson(
     lesson_id: int,
@@ -468,12 +470,12 @@ async def get_tasks_for_lesson(
     Fetch all tasks for a specific lesson.
     """
     logger.info(f"Fetching tasks for lesson ID: {lesson_id}")
+
     try:
-        # Query tasks with their associated videos (if any)
         tasks_query = await db.execute(
             select(Task)
             .where(Task.lesson_id == lesson_id)
-            .options(selectinload(Task.videos))  # Eager load videos relationship
+            .options(selectinload(Task.videos))
             .order_by(Task.task_id)
         )
         tasks = tasks_query.scalars().all()
@@ -481,15 +483,37 @@ async def get_tasks_for_lesson(
         if not tasks:
             raise HTTPException(status_code=404, detail=f"No tasks found for lesson ID: {lesson_id}")
 
-        # Serialize the tasks
-        task_responses = [TaskResponse.from_orm(task) for task in tasks]
+        # Process tasks
+        task_responses = []
+        for task in tasks:
+            if task.task_type == "sign_presentation":
+                # Ensure video_id is moved to content and videos is emptied
+                if task.videos:
+                    task.content["video_id"] = task.videos[0].video_id
+                    task.videos = []  # Clear videos for sign_presentation tasks
+            
+            task_responses.append(
+                TaskResponse(
+                    task_id=task.task_id,
+                    task_type=task.task_type,
+                    content=task.content,
+                    correct_answer=task.correct_answer,
+                    version=task.version,
+                    points=task.points,
+                    videos=task.videos,
+                )
+            )
+
         return task_responses
-    except HTTPException as http_ex:
-        logger.error(f"HTTPException fetching tasks for lesson ID {lesson_id}: {str(http_ex)}")
-        raise http_ex
+
     except Exception as e:
-        logger.error(f"Unexpected error fetching tasks for lesson ID {lesson_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error fetching tasks for lesson ID {lesson_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch tasks")
+
+
+
+
+
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_task_by_id(
@@ -502,19 +526,26 @@ async def get_task_by_id(
     """
     logger.info(f"Fetching task ID: {task_id}")
     try:
+        # Fetch task and join related videos
         task_query = await db.execute(
-            select(Task).where(Task.task_id == task_id).options(selectinload(Task.videos))
+            select(Task)
+            .where(Task.task_id == task_id)
+            .options(selectinload(Task.videos))  # Ensure videos are eagerly loaded
         )
         task = task_query.scalar()
 
         if not task:
+            logger.warning(f"Task ID {task_id} not found")
             raise HTTPException(status_code=404, detail=f"Task with ID {task_id} not found")
+
+        # Debugging: Print task and associated videos
+        logger.info(f"Task found: {task}")
+        logger.info(f"Videos associated: {task.videos}")
 
         return task
     except Exception as e:
-        logger.error(f"Error fetching task ID {task_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch the task")
-    
+        logger.error(f"Error fetching task ID {task_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch the task: {str(e)}")
 
 
     # Get current user's points

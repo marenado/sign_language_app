@@ -62,7 +62,20 @@ const Dashboard = () => {
 
 
   const chartData = {
-    labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    labels: [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ],
     datasets: [
       {
         label: "Points Gained",
@@ -73,18 +86,9 @@ const Dashboard = () => {
         tension: 0.4,
         fill: true,
       },
-      {
-        label: "Time Spent (hours)",
-        data: [...Array(11).fill(0), dashboardData.total_time_spent || 0],
-        borderColor: "#38bdf8",
-        backgroundColor: "rgba(56, 189, 248, 0.2)",
-        borderWidth: 3,
-        tension: 0.4,
-        fill: true,
-      },
     ],
   };
-
+  
   const chartOptions = {
     responsive: true,
     plugins: {
@@ -133,7 +137,7 @@ const Dashboard = () => {
       },
     },
   };
-
+  
   return (
     <Box
       sx={{
