@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000", // Backend API URL
+  baseURL: "https://signlearn.onrender.com", // Backend API URL
 });
 
 // Attach access token to every request
@@ -27,9 +27,10 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           // Request a new access token using the refresh token
-          const response = await axios.post("http://127.0.0.1:8000/auth/refresh", {
+          const response = await axios.post("https://signlearn.onrender.com/auth/refresh", {
             refresh_token: refreshToken,
           });
+          
 
           const { access_token } = response.data;
 

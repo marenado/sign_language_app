@@ -5,7 +5,7 @@ import Sidebar from "../components/Sidebar";
 import api from "../services/api";
 import { Search as SearchIcon } from "@mui/icons-material"; // Material-UI Icon for the magnifying glass
 
-const BASE_URL = "http://127.0.0.1:8000"; // Adjust the backend API base URL
+
 
 const DictionaryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");

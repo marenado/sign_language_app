@@ -4,7 +4,7 @@ import axios from "axios";
 import styled from "styled-components";
 import Sidebar from "./Sidebar";
 
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = "https://signlearn.onrender.com";
 const COLORS = ["#007bff", "#28a745", "#ff7f0e", "#17a2b8"]; // Colors for matching tasks
 
 const TasksPage = () => {
