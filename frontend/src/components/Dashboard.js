@@ -143,7 +143,7 @@ const Dashboard = () => {
       sx={{
         display: "flex",
         height: "100vh",
-        background: "linear-gradient(to bottom, white, #E6DFFF)",
+        background: " #E6DFFF",
         overflow: "hidden",
       }}
     >
