@@ -595,7 +595,7 @@ const createTask = async () => {
           flex: 1,
           overflowY: "auto",
           padding: "20px",
-          background: "linear-gradient(to bottom right, white, #E6DFFF)",
+       //   background: "linear-gradient(to bottom right, white, #E6DFFF)",
         }}
       >
         {/* <Typography variant="h4" sx={{ fontWeight: "bold", marginBottom: "20px", textAlign: "center" }}>
