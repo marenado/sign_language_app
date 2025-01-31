@@ -94,10 +94,10 @@ const Login = ({ setIsAdmin }) => {
   </ForgotPasswordLink> {/* New link */}
           <Separator>Or continue with</Separator>
           <SocialButtons>
-            <SocialButton className="google" onClick={() => (window.location.href = "http://127.0.0.1:8000/auth/google/login")}>
+            <SocialButton className="google" onClick={() => (window.location.href = "https://signlearn-2nxt.onrender.com/auth/google/login")}>
               Sign in with Google
             </SocialButton>
-            <SocialButton className="facebook" onClick={() => (window.location.href = "http://127.0.0.1:8000/auth/facebook/login")}>
+            <SocialButton className="facebook" onClick={() => (window.location.href = "https://signlearn-2nxt.onrender.com/auth/facebook/login")}>
               Sign in with Facebook
             </SocialButton>
           </SocialButtons>
