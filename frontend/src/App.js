@@ -28,12 +28,12 @@ const Login = ({ setIsAdmin }) => {
 
 
   useEffect(() => {
-   
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
 
     if (token) {
       try {
+        
         localStorage.setItem("authToken", token);
         const decodedToken = jwtDecode(token);
         const isAdmin = decodedToken.is_admin;
@@ -41,12 +41,13 @@ const Login = ({ setIsAdmin }) => {
 
         setIsAdmin(isAdmin);
 
+      
         navigate(isAdmin ? "/admin/modules" : "/dashboard");
       } catch (error) {
         console.error("Error decoding Google token:", error);
       }
     }
-  }, []); 
+  }, [location, navigate, setIsAdmin]);
 
 
   const handleLogin = async (e) => {
@@ -58,7 +59,7 @@ const Login = ({ setIsAdmin }) => {
 
       const { access_token, refresh_token } = response.data;
 
-      // ✅ Store tokens securely
+      
       localStorage.setItem("authToken", access_token);
       localStorage.setItem("refreshToken", refresh_token);
 
@@ -68,7 +69,7 @@ const Login = ({ setIsAdmin }) => {
 
       setIsAdmin(isAdmin);
 
-      // ✅ Redirect based on role
+     
       navigate(isAdmin ? "/admin/modules" : "/dashboard");
     } catch (error) {
       console.error("Login error:", error.response?.data?.detail || error.message);
@@ -160,6 +161,8 @@ const App = () => {
         {/* Login and Signup */}
         <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} /> {/* Pass setIsAdmin here */}
         <Route path="/signup" element={<SignUp />} />
+        {/* <Route path="/login-success" element={<GoogleAuthHandler setIsAdmin={setIsAdmin} />} /> */}
+
 
         {/* Admin Routes */}
         <Route
