@@ -342,8 +342,10 @@ async def validate_email(request: EmailValidationRequest):
     Validate the email address using the MailboxLayer API.
     """
     try:
-        email = request.email  # Extract the email from the JSON body
-        url = f"http://apilayer.net/api/check?access_key={MAILBOXLAYER_API_KEY}&email={email}"
+        email = request.email 
+        MAILBOXLAYER_BASE_URL = os.getenv("MAILBOXLAYER_BASE_URL", "http://apilayer.net/api")
+        url = f"{MAILBOXLAYER_BASE_URL}/check?access_key={MAILBOXLAYER_API_KEY}&email={email}"
+
         response = requests.get(url)
         data = response.json()
 
