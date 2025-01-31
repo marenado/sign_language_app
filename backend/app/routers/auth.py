@@ -97,39 +97,56 @@ oauth.register(
 # Google Login
 @router.get("/google/login")
 async def google_login(request: Request):
-    return await oauth.google.authorize_redirect(
-        request,
-        os.getenv("GOOGLE_REDIRECT_URI")  
-    )
+    return await oauth.google.authorize_redirect(request, os.getenv("GOOGLE_REDIRECT_URI"))
+
+
 
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    token = await oauth.google.authorize_access_token(request)
-    user_info = token.get("userinfo")
-    if not user_info:
-        raise HTTPException(status_code=400, detail="Failed to fetch user information from Google")
-
-
-    email = user_info["email"]
-    name = user_info.get("name", email.split("@")[0])
-
     try:
+        # Fetch access token from Google
+        token = await oauth.google.authorize_access_token(request)
+        logging.info(f"Google OAuth Token: {token}")  # Debugging log
+
+        # Extract user info (some Google responses don't have "userinfo", only "id_token")
+        user_info = token.get("userinfo")
+        if not user_info and "id_token" in token:
+            import jwt  # Ensure you have `pyjwt` installed
+            user_info = jwt.decode(token["id_token"], options={"verify_signature": False})
+
+        if not user_info:
+            logging.error("Google OAuth: 'userinfo' missing from token response")
+            raise HTTPException(status_code=400, detail="Failed to fetch user information from Google")
+
+        email = user_info.get("email")
+        name = user_info.get("name", email.split("@")[0])
+
+        if not email:
+            logging.error("Google OAuth: 'email' missing from userinfo")
+            raise HTTPException(status_code=400, detail="Google did not return an email address")
+
+        # Check if user exists in the database
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
+
         if not user:
             user = User(email=email, username=name, password="", is_verified=True)
             db.add(user)
             await db.commit()
 
-        token = create_access_token({"sub": email, "is_admin": user.is_admin})
-        return {"access_token": token, "token_type": "bearer"}
+        # Generate access token
+        access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except HTTPException as http_err:
+        logging.error(f"HTTP Exception in Google Callback: {str(http_err)}")
+        raise http_err
     except Exception as e:
-        await db.rollback()
-        logging.error(f"Error during Google callback: {str(e)}")
-        raise HTTPException(status_code=500, detail="An error occurred")
+        logging.error(f"Unexpected error in Google Callback: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     finally:
-        await db.close() 
-    
+        await db.close()
+
         
 
 @router.post("/login")
