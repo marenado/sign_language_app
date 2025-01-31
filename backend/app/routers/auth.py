@@ -89,15 +89,22 @@ oauth.register(
     client_id=os.getenv("GOOGLE_CLIENT_ID"),
     client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
     authorize_url="https://accounts.google.com/o/oauth2/auth",
-    access_token_url="https://accounts.google.com/o/oauth2/token",
+    access_token_url="https://oauth2.googleapis.com/token",
+    userinfo_endpoint="https://openidconnect.googleapis.com/v1/userinfo",  
+    jwks_uri="https://www.googleapis.com/oauth2/v3/certs",  
     redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
     client_kwargs={"scope": "openid email profile"},
 )
 
+
 # Google Login
 @router.get("/google/login")
 async def google_login(request: Request):
-    return await oauth.google.authorize_redirect(request, os.getenv("GOOGLE_REDIRECT_URI"))
+    return await oauth.google.authorize_redirect(
+        request,
+        redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
+        scope=["openid", "email", "profile"]
+    )
 
 
 
