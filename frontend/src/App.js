@@ -26,29 +26,24 @@ const Login = ({ setIsAdmin }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
 
     if (token) {
       try {
-        
         localStorage.setItem("authToken", token);
         const decodedToken = jwtDecode(token);
         const isAdmin = decodedToken.is_admin;
         localStorage.setItem("isAdmin", isAdmin);
-
         setIsAdmin(isAdmin);
 
-      
         navigate(isAdmin ? "/admin/modules" : "/dashboard");
       } catch (error) {
-        console.error("Error decoding Google token:", error);
+        console.error("Error decoding token:", error);
       }
     }
   }, [location, navigate, setIsAdmin]);
-
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -75,6 +70,11 @@ const Login = ({ setIsAdmin }) => {
       console.error("Login error:", error.response?.data?.detail || error.message);
       setMessage("Invalid email or password. Please try again.");
     }
+  };
+
+
+  const handleFacebookLogin = () => {
+    window.location.href = "https://signlearn.onrender.com/auth/facebook/login";
   };
 
   
@@ -119,7 +119,7 @@ const Login = ({ setIsAdmin }) => {
             <SocialButton className="google" onClick={() => (window.location.href = "https://signlearn.onrender.com/auth/google/login")}>
               Sign in with Google
             </SocialButton>
-            <SocialButton className="facebook" onClick={() => (window.location.href = "https://signlearn.onrender.com/auth/facebook/login")}>
+            <SocialButton className="facebook" onClick={handleFacebookLogin}>
               Sign in with Facebook
             </SocialButton>
           </SocialButtons>

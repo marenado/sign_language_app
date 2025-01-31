@@ -91,11 +91,72 @@ oauth.register(
     client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
     authorize_url="https://accounts.google.com/o/oauth2/auth",
     access_token_url="https://oauth2.googleapis.com/token",
-    userinfo_endpoint="https://openidconnect.googleapis.com/v1/userinfo",  
-    jwks_uri="https://www.googleapis.com/oauth2/v3/certs",  
+    userinfo_endpoint="https://openidconnect.googleapis.com/v1/userinfo",
+    jwks_uri="https://www.googleapis.com/oauth2/v3/certs",
     redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
     client_kwargs={"scope": "openid email profile"},
 )
+
+oauth.register(
+    name="facebook",
+    client_id=os.getenv("FACEBOOK_CLIENT_ID"),
+    client_secret=os.getenv("FACEBOOK_CLIENT_SECRET"),
+    authorize_url="https://www.facebook.com/v16.0/dialog/oauth",
+    access_token_url="https://graph.facebook.com/v16.0/oauth/access_token",
+    userinfo_endpoint="https://graph.facebook.com/me",
+    redirect_uri=os.getenv("FACEBOOK_REDIRECT_URI"),
+    client_kwargs={"scope": "email,public_profile"},
+)
+
+
+
+@router.get("/facebook/login")
+async def facebook_login(request: Request):
+    return await oauth.facebook.authorize_redirect(
+        request,
+        redirect_uri=os.getenv("FACEBOOK_REDIRECT_URI"),
+    )
+
+
+@router.get("/facebook/callback")
+async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        token = await oauth.facebook.authorize_access_token(request)
+        access_token = token["access_token"]
+
+        user_info_response = await oauth.facebook.get(
+            "https://graph.facebook.com/me?fields=id,name,email",
+            token={"access_token": access_token} 
+        )
+        user_info = user_info_response.json()
+
+        email = user_info.get("email")
+        name = user_info.get("name")
+
+        if not email:
+            raise HTTPException(status_code=400, detail="Facebook did not return an email address")
+
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            user = User(email=email, username=name, password="", is_verified=True)
+            db.add(user)
+            await db.commit()
+
+        access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
+
+        return RedirectResponse(f"{FRONTEND_URL}/?token={access_token}")
+
+    except HTTPException as http_err:
+        logging.error(f"HTTP Exception in Facebook Callback: {str(http_err)}")
+        raise http_err
+    except Exception as e:
+        logging.error(f"Unexpected error in Facebook Callback: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+    finally:
+        await db.close()
+
 
 
 # Google Login
