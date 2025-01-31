@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import os
 from jose import jwt, JWTError
 from jose.exceptions import ExpiredSignatureError
+from fastapi.responses import RedirectResponse
 import requests
 from sqlalchemy.exc import IntegrityError
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
@@ -143,7 +144,12 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
         # Generate access token
         access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
-        return {"access_token": access_token, "token_type": "bearer"}
+
+        # Get the frontend URL from environment variables
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")  # Default to local if missing
+
+        # Redirect the user to the frontend with the token
+        return RedirectResponse(f"{frontend_url}/login-success?token={access_token}")
 
     except HTTPException as http_err:
         logging.error(f"HTTP Exception in Google Callback: {str(http_err)}")
@@ -153,7 +159,6 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     finally:
         await db.close()
-
         
 
 @router.post("/login")

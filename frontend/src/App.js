@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import TypedText from "./components/TypedText";
 import axios from "axios";
 import styled from "styled-components";
-import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import SignUp from "./components/SignUp";
 import DictionaryPage from "./components/DictionaryPage";
 import TasksPage from "./components/TasksPage";
@@ -24,37 +24,58 @@ const Login = ({ setIsAdmin }) => {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
 
-  
+
+  useEffect(() => {
+   
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token");
+
+    if (token) {
+      try {
+        localStorage.setItem("authToken", token);
+        const decodedToken = jwtDecode(token);
+        const isAdmin = decodedToken.is_admin;
+        localStorage.setItem("isAdmin", isAdmin);
+
+        setIsAdmin(isAdmin);
+
+        navigate(isAdmin ? "/admin/modules" : "/dashboard");
+      } catch (error) {
+        console.error("Error decoding Google token:", error);
+      }
+    }
+  }, []); 
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setMessage(""); // Reset message on login attempt
+
     try {
-      
-      const response = await api.post("/auth/login", {
-        email,
-        password,
-      });
-  
+      const response = await api.post("/auth/login", { email, password });
+
       const { access_token, refresh_token } = response.data;
-  
-      // Save tokens in localStorage
+
+      // ✅ Store tokens securely
       localStorage.setItem("authToken", access_token);
       localStorage.setItem("refreshToken", refresh_token);
-  
+
       const decodedToken = jwtDecode(access_token);
       const isAdmin = decodedToken.is_admin;
       localStorage.setItem("isAdmin", isAdmin);
-  
+
       setIsAdmin(isAdmin);
-  
-      // Navigate based on user role
+
+      // ✅ Redirect based on role
       navigate(isAdmin ? "/admin/modules" : "/dashboard");
     } catch (error) {
       console.error("Login error:", error.response?.data?.detail || error.message);
       setMessage("Invalid email or password. Please try again.");
     }
   };
+
   
 
   return (
