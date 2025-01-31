@@ -50,7 +50,7 @@ MAILBOXLAYER_API_KEY = os.getenv("MAILBOXLAYER_API_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256" 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
-
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 # Environment variable validation
 def validate_env_variables():
@@ -114,37 +114,40 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         # Fetch access token from Google
         token = await oauth.google.authorize_access_token(request)
-        logging.info(f"Google OAuth Token: {token}")  # Debugging log
+        user_info = token.get("userinfo") or jwt.decode(token["id_token"], options={"verify_signature": False})
+        email = user_info["email"]
+        # logging.info(f"Google OAuth Token: {token}")  # Debugging log
 
         # Extract user info (some Google responses don't have "userinfo", only "id_token")
-        user_info = token.get("userinfo")
-        if not user_info and "id_token" in token:
-            import jwt  # Ensure you have `pyjwt` installed
-            user_info = jwt.decode(token["id_token"], options={"verify_signature": False})
+       #
+        # if not user_info and "id_token" in token:
+        #     import jwt  # Ensure you have `pyjwt` installed
+        #     user_info = jwt.decode(token["id_token"], options={"verify_signature": False})
 
-        if not user_info:
-            logging.error("Google OAuth: 'userinfo' missing from token response")
-            raise HTTPException(status_code=400, detail="Failed to fetch user information from Google")
+        # if not user_info:
+        #     logging.error("Google OAuth: 'userinfo' missing from token response")
+        #     raise HTTPException(status_code=400, detail="Failed to fetch user information from Google")
 
-        email = user_info.get("email")
-        name = user_info.get("name", email.split("@")[0])
+        # email = user_info.get("email")
+        # name = user_info.get("name", email.split("@")[0])
 
-        if not email:
-            logging.error("Google OAuth: 'email' missing from userinfo")
-            raise HTTPException(status_code=400, detail="Google did not return an email address")
+        # if not email:
+        #     logging.error("Google OAuth: 'email' missing from userinfo")
+        #     raise HTTPException(status_code=400, detail="Google did not return an email address")
 
         # Check if user exists in the database
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
 
         if not user:
+            name = user_info.get("name", email.split("@")[0])
             user = User(email=email, username=name, password="", is_verified=True)
             db.add(user)
             await db.commit()
 
         # Generate access token
         access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
-        return {"access_token": access_token, "token_type": "bearer"}
+        return RedirectResponse(f"{FRONTEND_URL}/login-success?token={access_token}")
 
     except HTTPException as http_err:
         logging.error(f"HTTP Exception in Google Callback: {str(http_err)}")
