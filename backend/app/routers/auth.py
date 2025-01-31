@@ -56,11 +56,13 @@ def validate_env_variables():
     required_vars = [
         "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
         "MAIL_PORT", "MAIL_SERVER", "SECRET_KEY",
-        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"
+        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI", "FRONTEND_URL"
     ]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     if missing_vars:
-        raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        raise RuntimeError("Critical environment variables are missing. Check your .env file.")
 
 validate_env_variables()
 
@@ -100,9 +102,10 @@ async def google_login(request: Request):
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     token = await oauth.google.authorize_access_token(request)
-    user_info = token.get("userinfo") or token.get("id_token")
+    user_info = token.get("userinfo")
     if not user_info:
-        raise HTTPException(status_code=400, detail="Failed to fetch user information")
+        raise HTTPException(status_code=400, detail="Failed to fetch user information from Google")
+
 
     email = user_info["email"]
     name = user_info.get("name", email.split("@")[0])
@@ -121,7 +124,10 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         await db.rollback()
         logging.error(f"Error during Google callback: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred")
+    finally:
+        await db.close() 
     
+        
 
 @router.post("/login")
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
@@ -154,7 +160,8 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logging.error(f"Error during login: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred during login.")
-
+    finally:
+        await db.close()
 
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
@@ -181,8 +188,8 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
 
         # Generate an email verification token
         token = serializer.dumps(user_data.email, salt="email-verification")
-        verification_link = f"http://127.0.0.1:8000/auth/verify-email?token={token}"
-
+        frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+        verification_link = f"{frontend_url}/verify-email?token={token}"
         # Send the verification email
         message = MessageSchema(
             subject="Verify your email",
@@ -232,7 +239,11 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
 
         # Generate a secure token with expiration (1 hour)
         token = serializer.dumps({"email": user.email}, salt="password-reset")
-        reset_link = f"{os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')}/reset-password?token={token}"
+
+        # Ensure the frontend URL is formatted correctly
+        frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+        reset_link = f"{frontend_url}/reset-password?token={token}"
+        username = user.username if user.username else "User"
 
         # Send password reset email
         message = MessageSchema(
@@ -254,12 +265,16 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
         fm = FastMail(conf)
         await fm.send_message(message)
 
-        logging.info(f"Password reset link sent to {request.email}")
+        logging.info(f"Password reset link sent to {request.email}: {reset_link}")
         return {"message": "Password reset link has been sent to your email."}
 
     except Exception as e:
         logging.error(f"Error during forgot password: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+    finally:
+        await db.close()
+
+
 
 
 from fastapi import HTTPException
@@ -281,26 +296,30 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # Mark the user as verified if not already verified
+        # Get the frontend URL from the environment variables
+        frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+
+        # If the user is already verified, return an appropriate response
         if user.is_verified:
-            return HTMLResponse("""
+            return HTMLResponse(f"""
                 <html>
                     <body>
                         <h1>Email Already Verified</h1>
-                        <p>Your email has already been verified. <a href="http://127.0.0.1:3000/">Login here</a>.</p>
+                        <p>Your email has already been verified. <a href="{frontend_url}/">Login here</a>.</p>
                     </body>
                 </html>
             """)
 
+        # Mark the user as verified
         user.is_verified = True
         await db.commit()
 
-        # Return an HTML confirmation page
-        return HTMLResponse("""
+        # Return an HTML confirmation page with the correct frontend URL
+        return HTMLResponse(f"""
             <html>
                 <body>
                     <h1>Email Verified Successfully</h1>
-                    <p>Your email has been verified. <a href="http://127.0.0.1:3000/">Click here to login</a>.</p>
+                    <p>Your email has been verified. <a href="{frontend_url}/">Click here to login</a>.</p>
                 </body>
             </html>
         """)
@@ -310,6 +329,9 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logging.error(f"Error during email verification: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred during email verification.")
+    finally:
+        await db.close()
+
 
 
 
@@ -387,7 +409,8 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
         logging.error(f"Unexpected error during password reset: {str(e)}")
         await db.rollback()
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
-    
+    finally:
+        await db.close() 
 
     
 
@@ -403,7 +426,8 @@ async def check_email(email: str, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logging.error(f"Error checking email: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred while checking the email.")
-    
+    finally:
+        await db.close() 
 
 @router.post("/refresh")
 async def refresh_access_token_endpoint(
@@ -433,7 +457,8 @@ async def refresh_access_token_endpoint(
         raise HTTPException(status_code=401, detail="Refresh token has expired.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token.")
-
+    finally:
+        await db.close() 
     
 
 
