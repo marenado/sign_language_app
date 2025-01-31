@@ -30,7 +30,7 @@ const Login = ({ setIsAdmin }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      // Use `api.post` instead of `axios.post`
+      
       const response = await api.post("/auth/login", {
         email,
         password,
