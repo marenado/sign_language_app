@@ -97,7 +97,14 @@ oauth.register(
 # Google Login
 @router.get("/google/login")
 async def google_login(request: Request):
-    return await oauth.google.authorize_redirect(request, os.getenv("GOOGLE_REDIRECT_URI"))
+    return await oauth.google.authorize_redirect(
+        request,
+        "https://accounts.google.com/o/oauth2/auth",
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
+        scope="openid email profile"
+    )
+
 
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
