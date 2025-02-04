@@ -44,7 +44,7 @@ const Dashboard = () => {
         setDashboardData(dashboardResponse.data);
         setTopUsers(topUsersResponse.data);
       } catch (err) {
-        console.error("Error fetching data:", err);
+        // console.error("Error fetching data:", err);
         if (err.response?.status === 401) {
           setError("Access token expired. Please log in again.");
           localStorage.removeItem("authToken");

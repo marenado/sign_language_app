@@ -52,8 +52,8 @@ const authToken = localStorage.getItem("authToken");
         ]);
 
         const taskData = taskResponse.data;
-        console.log("Fetched Task:", taskData); // Debugging Task Response
-        console.log("Lesson Tasks:", lessonTasksResponse.data);
+        // console.log("Fetched Task:", taskData); // Debugging Task Response
+        // console.log("Lesson Tasks:", lessonTasksResponse.data);
 
         setTask(taskData);
         setTaskIds(lessonTasksResponse.data.map((t) => t.task_id));

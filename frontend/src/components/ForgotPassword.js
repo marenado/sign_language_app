@@ -11,7 +11,7 @@ const ForgotPassword = () => {
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     try {
-      console.log("Sending email:", email); // Add this line for debugging
+      // console.log("Sending email:", email); // Add this line for debugging
       await axios.post("https://signlearn.onrender.com/auth/forgot-password", { email });
       setMessage("Password reset link sent! Check your email.");
     } catch (error) {

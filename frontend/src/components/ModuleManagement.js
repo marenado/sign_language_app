@@ -121,7 +121,7 @@ const openMenu = (event, lessonId) => {
 
 const closeMenu = () => {
   if (!menuShouldClose.current) {
-    console.log("Preventing menu close.");
+    // console.log("Preventing menu close.");
     return;
   }
   setMenuAnchor(null);
@@ -131,7 +131,7 @@ const closeMenu = () => {
 
 
 const openEditLessonModal = (lesson) => {
-  console.log("Opening edit modal for lesson:", lesson);
+  // console.log("Opening edit modal for lesson:", lesson);
   setActiveLessonId(lesson.lesson_id); // Set active ID for the lesson being edited
   setLessonToEdit({
     title: lesson.title || "",
@@ -145,7 +145,7 @@ const openEditLessonModal = (lesson) => {
   
   
 const closeEditLessonModal = () => {
-  console.log("Closing edit lesson modal.");
+  // console.log("Closing edit lesson modal.");
   setEditLessonModalOpen(false);
   setActiveLessonId(null); // Reset only after edit is done
 };
@@ -156,11 +156,11 @@ const closeEditLessonModal = () => {
 
   const handleDeleteLesson = async () => {
     if (!activeLessonId) {
-      console.error("No active lesson ID set for deletion.");
+      // console.error("No active lesson ID set for deletion.");
       return;
     }
   
-    console.log(`Attempting to delete lesson with ID: ${activeLessonId}`); // Debug log
+    // console.log(`Attempting to delete lesson with ID: ${activeLessonId}`); // Debug log
   
     // Add the "removing" class to trigger the fade-out animation
     const lessonElement = document.getElementById(`lesson-${activeLessonId}`);
@@ -206,7 +206,7 @@ const closeEditLessonModal = () => {
 
   const handleEditLesson = async () => {
     if (!activeLessonId) {
-      console.error("No active lesson ID is set for updating.");
+      // console.error("No active lesson ID is set for updating.");
       return;
     }
   
@@ -220,7 +220,7 @@ const closeEditLessonModal = () => {
       );
   
     if (!currentModule || !currentModule.module_id) {
-      console.error("No module selected or module_id is missing.");
+      // console.error("No module selected or module_id is missing.");
       return;
     }
   
@@ -239,7 +239,7 @@ const closeEditLessonModal = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
         }
       );
-      console.log("Lesson updated successfully:", response.data);
+      // console.log("Lesson updated successfully:", response.data);
   
       // Update lessons state
       setLessons((prevLessons) => {
@@ -254,7 +254,7 @@ const closeEditLessonModal = () => {
   
       closeEditLessonModal();
     } catch (error) {
-      console.error("Error updating lesson:", error.response?.data || error.message);
+      // console.error("Error updating lesson:", error.response?.data || error.message);
     }
   };
   
@@ -275,7 +275,7 @@ const handleDeleteModule = async () => {
     fetchModules(); 
     closeDeleteDialog(); 
   } catch (error) {
-    console.error("Error deleting module:", error.response?.data || error.message);
+    // console.error("Error deleting module:", error.response?.data || error.message);
   }
 };
 
@@ -302,7 +302,7 @@ const searchVideos = async () => {
     });
     setVideoSearchResults(res.data);
   } catch (error) {
-    console.error("Error fetching videos:", error.response?.data || error.message);
+    // console.error("Error fetching videos:", error.response?.data || error.message);
   }
 };
 
@@ -329,14 +329,14 @@ const searchVideos = async () => {
         setSelectedLanguage(res.data[0].id); // Default to the first language
       }
     } catch (error) {
-      console.error("Error fetching languages:", error.response?.data || error.message);
+      // console.error("Error fetching languages:", error.response?.data || error.message);
     }
   }, []);
 
 
   const createLesson = async () => {
     if (!selectedModule || !selectedModule.module_id) {
-        console.error("No module selected.");
+        // console.error("No module selected.");
         return;
     }
 
@@ -349,17 +349,17 @@ const searchVideos = async () => {
             module_id: selectedModule.module_id,
         };
 
-        console.log("Lesson data to be sent:", lessonData);
+        // console.log("Lesson data to be sent:", lessonData);
 
         try {
             const response = await axios.post(`${BASE_URL}/admin/lessons`, lessonData, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
             });
-            console.log("Lesson created successfully:", response.data);
+            // console.log("Lesson created successfully:", response.data);
             await fetchLessons(selectedModule.module_id);
             closeLessonModal();
         } catch (error) {
-            console.error("Error creating lesson:", error.response?.data || error.message);
+            // console.error("Error creating lesson:", error.response?.data || error.message);
         }
     }, 0);
 };
@@ -369,7 +369,7 @@ const searchVideos = async () => {
 
   const createLanguage = async () => {
     if (!newLanguage.code || !newLanguage.name) {
-      console.error("Language code or name is missing.");
+      // console.error("Language code or name is missing.");
       return;
     }
   
@@ -385,7 +385,7 @@ const searchVideos = async () => {
         }
       );
   
-      console.log("Language created successfully:", response.data);
+      // console.log("Language created successfully:", response.data);
   
       
       setIsModalOpen(false);
@@ -438,10 +438,14 @@ const searchVideos = async () => {
   const fetchLessons = async (moduleId) => {
     if (!moduleId) {
       console.error("Module ID is required to fetch lessons.");
+
+
+
+
       return;
     }
   
-    console.log(`Fetching lessons for module ID: ${moduleId}`); // Debug log
+    // console.log(`Fetching lessons for module ID: ${moduleId}`); // Debug log
   
     try {
       const response = await axios.get(`${BASE_URL}/admin/lessons?module_id=${moduleId}`, {
@@ -449,9 +453,9 @@ const searchVideos = async () => {
       });
       setLessons((prevLessons) => ({
         ...prevLessons,
-        [moduleId]: response.data,
+        [moduleId]: response.data,s
       }));
-      console.log(`Lessons fetched for module ${moduleId}:`, response.data);
+      // console.log(`Lessons fetched for module ${moduleId}:`, response.data);
     } catch (error) {
       console.error(`Error fetching lessons for module ${moduleId}:`, error.response?.data || error.message);
     }
@@ -478,7 +482,7 @@ const searchVideos = async () => {
   }
 
   if (code.toLowerCase() === "en") {
-    console.log("Special case: Language code 'en' mapped to the US flag.");
+    // console.log("Special case: Language code 'en' mapped to the US flag.");
     return "https://flagcdn.com/w320/us.png"; 
   }
 
@@ -573,11 +577,11 @@ const createTask = async () => {
 
 
   useEffect(() => {
-    console.log("activeLessonId changed:", activeLessonId);
+    // console.log("activeLessonId changed:", activeLessonId);
   }, [activeLessonId]);
 
   useEffect(() => {
-    console.log("selectedModule changed:", selectedModule);
+    // console.log("selectedModule changed:", selectedModule);
   }, [selectedModule]);
   
   if (!isAuthenticated) {
@@ -1052,7 +1056,7 @@ const createTask = async () => {
           <MenuItem
             onClick={() => {
               menuShouldClose.current = false; // Prevent menu from closing
-              console.log("Edit Lesson clicked for ID:", lesson.lesson_id);
+              // console.log("Edit Lesson clicked for ID:", lesson.lesson_id);
               openEditLessonModal(lesson);
             }}
           >

@@ -14,7 +14,7 @@ conf = ConnectionConfig(
 
 
 async def send_verification_email(email: str, token: str) -> bool:
-    verification_url = f"http://127.0.0.1:3000/verify-email?token={token}"
+    verification_url = f"https://signlearn.onrender.com/verify-email?token={token}"
     html_content = f"""
     <html>
     <body>

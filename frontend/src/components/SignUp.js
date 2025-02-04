@@ -21,7 +21,7 @@ const SignUp = () => {
   const handleEmailValidation = async (email) => {
     try {
       const response = await axios.post("https://signlearn.onrender.com/auth/validate-email", { email });
-      console.log(response.data); // Debugging: Check the response format in the console
+      // console.log(response.data); // Debugging: Check the response format in the console
   
       if (response.data.valid) {
         setIsEmailValid(true);

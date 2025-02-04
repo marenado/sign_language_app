@@ -33,7 +33,7 @@ const DictionaryPage = () => {
       setLanguages(response.data);
       setSelectedLanguage(response.data[0]); // Default to the first language
     } catch (err) {
-      console.error("Failed to fetch languages:", err);
+      // console.error("Failed to fetch languages:", err);
       setError("Failed to load languages.");
     }
   };
@@ -47,7 +47,7 @@ const DictionaryPage = () => {
       setDictionaryItems(response.data);
       setError("");
     } catch (err) {
-      console.error("Failed to fetch dictionary items:", err);
+      // console.error("Failed to fetch dictionary items:", err);
       setError("Failed to load dictionary. Please try again.");
     } finally {
       setLoading(false);

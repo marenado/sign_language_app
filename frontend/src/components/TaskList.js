@@ -107,7 +107,7 @@ const saveTask = async () => {
       const res = await axios.get(`${BASE_URL}/admin/tasks?lesson_id=${lessonId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
       });
-      console.log("Fetched Tasks:", res.data); // Debug API response
+      // console.log("Fetched Tasks:", res.data); // Debug API response
       setTasks(res.data);
     } catch (error) {
       console.error("Error fetching tasks:", error.response?.data || error.message);
@@ -157,13 +157,13 @@ const saveTask = async () => {
   }, [lessonId]);
 
 
-  useEffect(() => {
-  console.log("Video search results:", videoSearchResults);
-}, [videoSearchResults]);
+//   useEffect(() => {
+//   console.log("Video search results:", videoSearchResults);
+// }, [videoSearchResults]);
 
-useEffect(() => {
-    console.log("Tasks:", tasks);
-  }, [tasks]);
+// useEffect(() => {
+//     console.log("Tasks:", tasks);
+//   }, [tasks]);
   
 
 
