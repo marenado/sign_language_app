@@ -453,7 +453,7 @@ const searchVideos = async () => {
       });
       setLessons((prevLessons) => ({
         ...prevLessons,
-        [moduleId]: response.data,s
+        [moduleId]: response.data,
       }));
       // console.log(`Lessons fetched for module ${moduleId}:`, response.data);
     } catch (error) {
