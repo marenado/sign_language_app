@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "homepage": ".",
   "dependencies": {
     "@atlaskit/drag-and-drop": "^0.15.1",
     "@emotion/react": "^11.14.0",
