@@ -419,24 +419,60 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
 @router.post("/validate-email")
 async def validate_email(request: EmailValidationRequest):
     """
-    Validate the email address using the MailboxLayer API.
+    Validate email with MailboxLayer, but NEVER block signup:
+    - short timeout
+    - treat provider failures as 'unknown' (do not hard-fail)
+    - return useful flags for the UI
     """
     try:
-        email = request.email 
-        MAILBOXLAYER_BASE_URL = os.getenv("MAILBOXLAYER_BASE_URL", "http://apilayer.net/api")
-        url = f"{MAILBOXLAYER_BASE_URL}/check?access_key={MAILBOXLAYER_API_KEY}&email={email}"
+        email = request.email
+        base = os.getenv("MAILBOXLAYER_BASE_URL", "https://apilayer.net/api")  # use HTTPS
+        key = MAILBOXLAYER_API_KEY
 
-        response = requests.get(url)
-        data = response.json()
+        # If the key is missing, don't block users
+        if not key:
+            logging.warning("[validate-email] MAILBOXLAYER_API_KEY missing; allowing email by default")
+            return {"valid": True, "source": "no_key"}
 
-        if data.get("format_valid") and data.get("smtp_check"):
-            return {"valid": True}
-        else:
-            return {"valid": False, "reason": data.get("did_you_mean", "Invalid email address.")}
+        # Ask for format + SMTP check; keep timeout short so UI never hangs
+        url = f"{base}/check"
+        params = {
+            "access_key": key,
+            "email": email,
+            "smtp": 1,
+            "format": 1,
+        }
+        resp = requests.get(url, params=params, timeout=4)
 
+        if resp.status_code != 200:
+            logging.warning(f"[validate-email] non-200 from validator: {resp.status_code}")
+            return {"valid": True, "source": "validator_unavailable"}
+
+        data = resp.json()
+        format_ok = bool(data.get("format_valid"))
+        smtp_ok = bool(data.get("smtp_check"))
+        did_you_mean = data.get("did_you_mean") or ""
+
+        if format_ok and smtp_ok:
+            return {"valid": True, "format_valid": True, "smtp_check": True}
+
+        # Not valid: include reason so UI can show a friendly hint
+        reason = did_you_mean or "Invalid email address."
+        return {
+            "valid": False,
+            "format_valid": format_ok,
+            "smtp_check": smtp_ok,
+            "reason": reason,
+        }
+
+    except requests.Timeout:
+        # Don’t block on timeouts
+        return {"valid": True, "source": "validator_timeout"}
     except Exception as e:
-        logging.error(f"Error during email validation: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error occurred during email validation.")
+        logging.error(f"[validate-email] error: {e}")
+        # Do NOT 500; just allow so UX isn't blocked by a third-party hiccup
+        return {"valid": True, "source": "validator_error"}
+
 
 
 @router.post("/reset-password")
@@ -496,20 +532,27 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
 
     
 
+from pydantic import BaseModel, EmailStr
+
+class CheckEmailRequest(BaseModel):
+    email: EmailStr
+
 @router.post("/check-email")
-async def check_email(email: str, db: AsyncSession = Depends(get_db)):
+async def check_email(payload: CheckEmailRequest, db: AsyncSession = Depends(get_db)):
     """
-    Check if the email is already registered in the database.
+    Returns whether the email already exists.
+    Accepts JSON: { "email": "user@example.com" }
     """
     try:
-        result = await db.execute(select(User).where(User.email == email))
+        result = await db.execute(select(User).where(User.email == payload.email))
         user = result.scalar_one_or_none()
         return {"exists": user is not None}
     except Exception as e:
-        logging.error(f"Error checking email: {str(e)}")
+        logging.error(f"Error checking email: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while checking the email.")
     finally:
-        await db.close() 
+        await db.close()
+
 
 @router.post("/refresh")
 async def refresh_access_token_endpoint(
