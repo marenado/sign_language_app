@@ -309,17 +309,15 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
         # Check if user exists with the provided email
         result = await db.execute(select(User).where(User.email == request.email))
         user = result.scalar_one_or_none()
-
         if not user:
             raise HTTPException(status_code=404, detail="User with this email does not exist.")
 
         # Generate a secure token with expiration (1 hour)
         token = serializer.dumps({"email": user.email}, salt="password-reset")
 
-        # Ensure the frontend URL is formatted correctly
+        # Build reset link using FRONTEND_URL from env
         frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
         reset_link = f"{frontend_url}/reset-password?token={token}"
-        username = user.username if user.username else "User"
 
         # Send password reset email
         message = MessageSchema(
@@ -328,7 +326,7 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
             body=f"""
                 <html>
                     <body>
-                        <p>Hi {user.username},</p>
+                        <p>Hi {user.username or "User"},</p>
                         <p>We received a request to reset your password. Click the link below to reset your password:</p>
                         <a href="{reset_link}">Reset Password</a>
                         <p>If you did not request a password reset, you can safely ignore this email.</p>
@@ -344,11 +342,17 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
         logging.info(f"Password reset link sent to {request.email}: {reset_link}")
         return {"message": "Password reset link has been sent to your email."}
 
+    except HTTPException:
+        # preserve 4xx like user-not-found
+        raise
     except Exception as e:
-        logging.error(f"Error during forgot password: {str(e)}")
-        raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+        # show full traceback in logs so you can see SMTP error class/message in Render
+        logging.exception(f"[forgot-password] mail send failed for {request.email}: {e}")
+        raise HTTPException(status_code=500, detail="Email sending failed. Check server logs.")
     finally:
         await db.close()
+
+
 
 
 
