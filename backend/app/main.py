@@ -1,46 +1,58 @@
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles  
-from app.routers import admin, achievements
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-load_dotenv()
-
 import os
-from app.routers import users, auth, dictionary
+
+from app.routers import users, auth, dictionary, admin, achievements
+
+load_dotenv()
 
 app = FastAPI()
 
-# CORS middleware
+# ----- CORS -----
+FRONTEND_ORIGINS = [
+    "https://signlearn-2nxt.onrender.com",  # React static site (Render)
+    "http://localhost:5173",                # local dev (Vite)
+    "http://127.0.0.1:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development (change to specific origins in production)
+    allow_origins=FRONTEND_ORIGINS,   # MUST NOT be "*" when allow_credentials=True
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, PUT, DELETE, OPTIONS, etc.)
-    allow_headers=["*"],  # Allow all headers (authorization, content-type, etc.)
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    max_age=86400,
 )
 
+# ----- Sessions -----
+# For cross-site requests (frontend domain != backend domain), cookies must be:
+# SameSite=None; Secure
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change_me")
+IS_PROD = os.getenv("ENV", "dev").lower() in {"prod", "production"}
 
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    same_site="none" if IS_PROD else "lax",   # set to "none" on Render
+    https_only=True if IS_PROD else False,     # True on Render (HTTPS)
+    # session_cookie="session",                # (optional) custom name
+)
 
-
-# Session middleware
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "ya_ebu"))
-
-# Routers
+# ----- Routers -----
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(dictionary.router)
 app.include_router(achievements.router)
 
-# Static file serving for media
+# ----- Static /media -----
 media_directory = "media"
-if not os.path.exists(media_directory):
-    os.makedirs(media_directory)  
-
+os.makedirs(media_directory, exist_ok=True)
 app.mount("/media", StaticFiles(directory=media_directory), name="media")
 
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Sign Language Application!"}
-
