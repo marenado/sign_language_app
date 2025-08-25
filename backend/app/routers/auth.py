@@ -87,20 +87,24 @@ serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY", "default_secret_key"
 from fastapi import Response, Request
 from datetime import timedelta
 
+# --- keep imports the same ---
+
 ACCESS_COOKIE_NAME = "sl_access"
 REFRESH_COOKIE_NAME = "sl_refresh"
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
-    # Lax works for your current subdomains; switch to "none" if you ever cross domains.
-    cookie_kwargs = dict(httponly=True, secure=True, samesite="lax")
-    # Access ~1 hour
+    # You are using different origins → must be SameSite=None + Secure
+    cookie_kwargs = dict(httponly=True, secure=True, samesite="none")
+
+    # Access (~1 hour)
     response.set_cookie(
         ACCESS_COOKIE_NAME, access_token, max_age=60*60, path="/", **cookie_kwargs
     )
-    # Refresh ~7 days (limit path to refresh route so it’s not sent everywhere)
+    # Refresh (~7 days), scoped to refresh route
     response.set_cookie(
         REFRESH_COOKIE_NAME, refresh_token, max_age=60*60*24*7, path="/auth/refresh", **cookie_kwargs
     )
+
 
 def clear_auth_cookies(response: Response):
     response.delete_cookie(ACCESS_COOKIE_NAME, path="/")
