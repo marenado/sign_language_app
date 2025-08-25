@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext } from "react";
 import styled from "styled-components";
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation} from "react-router-dom";
 import TypedText from "./components/TypedText";
 
 import SignUp from "./components/SignUp";
@@ -29,12 +29,15 @@ const Login = ({ onLoggedIn, autoCheck = false }) =>  {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+  const doCheck = autoCheck || new URLSearchParams(location.search).get("auto") === "1";
+
 
   // If session cookies already exist (e.g., after Google/Facebook redirect),
   // auto-route the user in. Comment this effect out if you want to ALWAYS
   // show the welcome page even when already authenticated.
     useEffect(() => {
-   if (!autoCheck) return;                   // <-- do nothing on "/"
+   if (!doCheck) return;                  // <-- do nothing on "/"
     let alive = true;
     (async () => {
       try {
@@ -47,7 +50,7 @@ const Login = ({ onLoggedIn, autoCheck = false }) =>  {
       }
     })();
     return () => { alive = false; };
-  }, [autoCheck, navigate]); 
+   }, [doCheck, navigate, onLoggedIn]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
