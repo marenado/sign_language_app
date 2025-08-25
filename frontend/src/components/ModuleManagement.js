@@ -5,6 +5,7 @@ import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import Tooltip from "@mui/material/Tooltip";
+import api from "../services/api"; // the one created with { withCredentials: true }
 import '../index.css';
 import { Menu, MenuItem, IconButton } from "@mui/material";
 // import { FormControl, InputLabel, NativeSelect } from "@mui/material";
@@ -232,13 +233,7 @@ const closeEditLessonModal = () => {
     };
   
     try {
-      const response = await axios.put(
-        `${BASE_URL}/admin/lessons/${activeLessonId}`,
-        payload,
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }
-      );
+      const response = await api.put(`/admin/lessons/${activeLessonId}`, payload);
       // console.log("Lesson updated successfully:", response.data);
   
       // Update lessons state
@@ -308,16 +303,11 @@ const searchVideos = async () => {
 
 
   // Check authentication
-  const checkAuth = useCallback(() => {
-    const token = localStorage.getItem("authToken");
-    if (token) {
-      setIsAuthenticated(true);
-    } else {
-      setIsAuthenticated(false);
-      navigate("/login");
-    }
-  }, [navigate]);
-
+ const checkAuth = useCallback(() => {
+   // This page is already protected by <AdminOnly/> in App.
+   // Do NOT navigate from here; it causes loops with /login auto-check.
+   setIsAuthenticated(true);
+ }, []);
   // Fetch all available languages from the backend
   const fetchLanguages = useCallback(async () => {
     try {
