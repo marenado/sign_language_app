@@ -30,13 +30,10 @@ const Login = ({ setIsAdmin }) => {
 
   // If session cookies already exist (e.g., after Google redirect), route user in
  useEffect(() => {
-  // Only try to hydrate if we actually have session cookies (e.g., after Google login)
-  if (!hasSession()) return;
-
   let alive = true;
   (async () => {
     try {
-      const { data } = await api.get("/auth/me"); // backend reads cookie
+      const { data } = await api.get("/auth/me");   // will 401 if not logged in
       if (!alive) return;
       setIsAdmin(data.is_admin);
       navigate(data.is_admin ? "/admin/modules" : "/dashboard");
@@ -44,10 +41,8 @@ const Login = ({ setIsAdmin }) => {
       // not logged in yet — keep the form
     }
   })();
-
   return () => { alive = false; };
 }, [navigate, setIsAdmin]);
-
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -134,12 +129,6 @@ const App = () => {
 
   // Bootstrap auth state from cookies
   useEffect(() => {
-  // If no cookies, we’re clearly logged out; don’t spam /auth/me
-  if (!hasSession()) { 
-    setIsAdmin(false);
-    return;
-  }
-
   let alive = true;
   (async () => {
     try {
@@ -151,7 +140,6 @@ const App = () => {
       setIsAdmin(false);
     }
   })();
-
   return () => { alive = false; };
 }, []);
 
@@ -164,7 +152,11 @@ const App = () => {
     <Router>
       <Routes>
         {/* Login and Signup */}
-        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
+          <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
+          <Route path="/login" element={<Login setIsAdmin={setIsAdmin} />} />
+    {/* optional: catch-all */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} /> */}
         <Route path="/signup" element={<SignUp />} />
 
         {/* Admin Routes */}
