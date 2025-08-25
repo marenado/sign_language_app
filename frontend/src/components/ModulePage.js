@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import axios from "axios";
+import api from "../services/api"; 
 import Sidebar from "../components/Sidebar";
 import { FaCheckCircle } from "react-icons/fa";
 
@@ -16,38 +17,36 @@ const ModulesPage = () => {
   // Fetch languages
   const fetchLanguages = async () => {
     try {
-      const response = await axios.get("https://signlearn.onrender.com/users/languages");
-      setLanguages(response.data);
+      const { data } = await api.get("/users/languages");
+      setLanguages(data || []);
+      if ((data || []).length > 0) {
+        setLanguage(String(data[0].id)); // pick first language as default
+      }
     } catch (err) {
       console.error("Failed to fetch languages:", err);
+      setError("Failed to load languages.");
+      setLoading(false);
     }
   };
 
   // Fetch modules
   const fetchModules = async (languageId) => {
+    if (!languageId) return;
+    setLoading(true);
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) throw new Error("No token found, user is not authenticated.");
-
-      const response = await axios.get(
-        `https://signlearn.onrender.com/users/modules?language_id=${languageId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      setModules(response.data);
+      const { data } = await api.get("/users/modules", {
+        params: { language_id: languageId },
+      });
+      setModules(data || []);
       setError("");
     } catch (err) {
       console.error("Failed to fetch modules:", err);
-      if (err.message === "No token found, user is not authenticated.") {
-        localStorage.removeItem("authToken");
-        window.location.href = "/";
-      } else {
-        setError("Failed to fetch modules. Please try again.");
+      // If backend sent 401 because cookie missing/expired, send to login
+      if (err?.response?.status === 401) {
+        navigate("/login");
+        return;
       }
+      setError("Failed to fetch modules. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -67,23 +66,19 @@ const ModulesPage = () => {
 
   const handleLessonClick = async (lessonId) => {
     try {
-      const response = await axios.get(
-        `https://signlearn.onrender.com/users/lessons/${lessonId}/tasks`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-          },
-        }
-      );
-
-      const tasks = response.data;
-      if (tasks.length > 0) {
-        navigate(`/lessons/${lessonId}/tasks/${tasks[0].task_id}`); // Navigate to the first task
+      // cookie-auth protected call
+      const { data: tasks } = await api.get(`/users/lessons/${lessonId}/tasks`);
+      if (tasks && tasks.length > 0) {
+        navigate(`/lessons/${lessonId}/tasks/${tasks[0].task_id}`);
       } else {
         alert("No tasks available for this lesson.");
       }
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
+      if (err?.response?.status === 401) {
+        navigate("/login");
+        return;
+      }
       alert("Failed to load tasks.");
     }
   };
