@@ -204,6 +204,7 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")  # must match Google cons
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://signlearn-2nxt.onrender.com")  # or your actual frontend
 
 
+
 # Google Login
 @router.get("/google/login")
 async def google_login(request: Request):
@@ -221,9 +222,7 @@ async def google_login(request: Request):
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         # use the same redirect_uri as above
-        token = await oauth.google.authorize_access_token(
-            request, redirect_uri=GOOGLE_REDIRECT_URI
-        )
+        token = await oauth.google.authorize_access_token(request)
 
         # prefer ID token; fall back to userinfo
         try:

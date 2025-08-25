@@ -5,11 +5,15 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import os
 
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.routers import users, auth, dictionary, admin, achievements
 
 load_dotenv()
 
 app = FastAPI()
+
+
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # ----- CORS -----
 FRONTEND_ORIGINS = [
