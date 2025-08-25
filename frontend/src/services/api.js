@@ -1,54 +1,29 @@
+// src/services/api.js
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://signlearn.onrender.com", // Backend API URL
+  baseURL: "https://signlearn.onrender.com",
+  withCredentials: true, // send/receive HttpOnly cookies
 });
 
-// Attach access token to every request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("authToken");
-  if (token) {
-    config.headers["Authorization"] = `Bearer ${token}`;
-  }
-  return config;
-});
+// No request interceptor adding Authorization headers — cookies handle auth
 
-// Handle token expiration and refresh logic
+// Auto-refresh on 401 (once), then retry the original request
 api.interceptors.response.use(
-  (response) => response, // Return the response if successful
+  (res) => res,
   async (error) => {
-    const originalRequest = error.config;
+    const original = error.config;
+    if (!original || original._retry) return Promise.reject(error);
 
-    // Check if the error is due to an expired access token
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      const refreshToken = localStorage.getItem("refreshToken");
-      if (refreshToken) {
-        try {
-          // Request a new access token using the refresh token
-          const response = await axios.post("https://signlearn.onrender.com/auth/refresh", {
-            refresh_token: refreshToken,
-          });
-          
-
-          const { access_token } = response.data;
-
-          // Update tokens in localStorage
-          localStorage.setItem("authToken", access_token);
-
-          // Update Authorization header and retry original request
-          originalRequest.headers["Authorization"] = `Bearer ${access_token}`;
-          return api(originalRequest);
-        } catch (refreshError) {
-          console.error("Refresh token failed:", refreshError);
-          localStorage.clear(); // Clear all tokens
-          window.location.href = "/"; // Redirect to login
-        }
-      } else {
-        console.error("No refresh token available.");
-        localStorage.clear(); // Clear all tokens
-        window.location.href = "/";
+    if (error.response && error.response.status === 401) {
+      try {
+        original._retry = true;
+        await api.post("/auth/refresh");        // uses refresh cookie
+        return api(original);                   // retry with new access cookie
+      } catch (e) {
+        try { await api.post("/auth/logout"); } catch {}
+        window.location.href = "/";             // back to login
+        return Promise.reject(e);
       }
     }
 
