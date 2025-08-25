@@ -199,7 +199,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         token = await oauth.google.authorize_access_token(request)
 
-        # Try verified ID token; fall back to userinfo
+        # Prefer verified ID token; fall back to userinfo
         try:
             userinfo = await oauth.google.parse_id_token(request, token)
         except Exception as e:
@@ -220,18 +220,16 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
             db.add(user)
             await db.commit()
 
-        # Create tokens
-        access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
+        # Issue tokens + set HttpOnly cookies
+        access_token  = create_access_token({"sub": email, "is_admin": user.is_admin})
         refresh_token = create_access_token({"sub": email, "is_admin": user.is_admin}, expire_minutes=60*24*7)
 
-        # Set cookies on redirect; no token in the URL
-        resp = RedirectResponse(f"{FRONTEND_URL}/")
+        resp = RedirectResponse(f"{FRONTEND_URL}/")  # no token in URL
         set_auth_cookies(resp, access_token, refresh_token)
         return resp
 
-    except HTTPException as http_err:
-        logging.error(f"HTTP Exception in Google Callback: {str(http_err)}")
-        raise http_err
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Unexpected error in Google Callback: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -239,27 +237,24 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         await db.close()
 
 
-        
 
 @router.post("/login")
 async def login(request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     try:
-        # find user
         result = await db.execute(select(User).where(User.email == request.email))
         user = result.scalar_one_or_none()
 
         if not user:
-            # generic message to avoid user enumeration
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # if the account was created via Google/Facebook, there is no local password hash
+        # If account was created by Google/Facebook, there is no local hash
         if not user.password:
             raise HTTPException(
                 status_code=400,
                 detail="This account was created with Google. Please sign in with Google or reset your password."
             )
 
-        # verify password (guard so weird hash errors don’t 500)
+        # Verify password (guard against hash errors)
         try:
             if not verify_password(request.password, user.password):
                 raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -267,17 +262,12 @@ async def login(request: LoginRequest, response: Response, db: AsyncSession = De
             logging.warning(f"Password verify error for {request.email}: {e}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # create tokens
-        access_token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
-        refresh_token = create_access_token(
-            {"sub": user.email, "is_admin": user.is_admin}, expire_minutes=60 * 24 * 7  # 7 days
-        )
+        access_token  = create_access_token({"sub": user.email, "is_admin": user.is_admin})
+        refresh_token = create_access_token({"sub": user.email, "is_admin": user.is_admin}, expire_minutes=60*24*7)
 
-        # set HttpOnly cookies
         set_auth_cookies(response, access_token, refresh_token)
+        return {"ok": True}  # frontend doesn’t need raw tokens
 
-        # minimal JSON body (frontend doesn’t need tokens anymore)
-        return {"ok": True}
     except HTTPException:
         raise
     except Exception as e:
@@ -285,6 +275,8 @@ async def login(request: LoginRequest, response: Response, db: AsyncSession = De
         raise HTTPException(status_code=500, detail="An error occurred during login.")
     finally:
         await db.close()
+        
+
 
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
