@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql import text
-from sqlalchemy.future import delete
+from sqlalchemy import delete
 from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional, List
 import logging
