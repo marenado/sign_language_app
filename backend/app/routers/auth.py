@@ -134,11 +134,8 @@ oauth.register(
     name="google",
     client_id=os.getenv("GOOGLE_CLIENT_ID"),
     client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-    authorize_url="https://accounts.google.com/o/oauth2/auth",
-    access_token_url="https://oauth2.googleapis.com/token",
-    userinfo_endpoint="https://openidconnect.googleapis.com/v1/userinfo",
-    jwks_uri="https://www.googleapis.com/oauth2/v3/certs",
-    redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
+    # You can use server metadata instead of hardcoding endpoints:
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
     client_kwargs={"scope": "openid email profile"},
 )
 
@@ -203,14 +200,19 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
         await db.close()
 
 
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")  # must match Google console exactly
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://signlearn-2nxt.onrender.com")  # or your actual frontend
+
 
 # Google Login
 @router.get("/google/login")
 async def google_login(request: Request):
+    # pass the exact same redirect_uri you'll use in the callback exchange
     return await oauth.google.authorize_redirect(
         request,
-        redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
-        scope=["openid", "email", "profile"]
+        redirect_uri=GOOGLE_REDIRECT_URI,
+        prompt="consent",  # optional
+        access_type="offline"  # optional
     )
 
 
@@ -218,21 +220,26 @@ async def google_login(request: Request):
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        token = await oauth.google.authorize_access_token(request)
+        # use the same redirect_uri as above
+        token = await oauth.google.authorize_access_token(
+            request, redirect_uri=GOOGLE_REDIRECT_URI
+        )
 
-        # Prefer verified ID token; fall back to userinfo
+        # prefer ID token; fall back to userinfo
         try:
             userinfo = await oauth.google.parse_id_token(request, token)
         except Exception as e:
-            logging.warning(f"[google_callback] parse_id_token failed: {e}. Falling back to userinfo.")
-            resp = await oauth.google.get("https://openidconnect.googleapis.com/v1/userinfo", token=token)
-            userinfo = resp.json()
+            logging.warning("parse_id_token failed: %s; falling back to userinfo", e)
+            resp_u = await oauth.google.get(
+                "https://openidconnect.googleapis.com/v1/userinfo", token=token
+            )
+            userinfo = resp_u.json()
 
         email = userinfo.get("email")
         if not email:
-            raise HTTPException(status_code=400, detail="Google did not return an email address")
+            raise HTTPException(status_code=400, detail="Google did not return an email")
 
-        # Upsert user
+        # upsert user
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
@@ -240,22 +247,22 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
             user = User(email=email, username=name, password="", is_verified=True)
             db.add(user)
             await db.commit()
+            await db.refresh(user)
 
-        # Issue tokens + set HttpOnly cookies
-        # in /google/callback
+        # create response FIRST...
+        resp = RedirectResponse(url=f"{FRONTEND_URL}/")  # or /modules
+
+        # ...then set cookies on it
         access_token  = create_access_token({"sub": email, "is_admin": user.is_admin})
         refresh_token = create_refresh_token({"sub": email, "is_admin": user.is_admin})
-        set_auth_cookies(resp, access_token, refresh_token)
+        set_auth_cookies(resp, access_token, refresh_token)  # make sure this sets HttpOnly, Secure, SameSite=None
 
-
-        resp = RedirectResponse(f"{FRONTEND_URL}/")  # no token in URL
-        
         return resp
 
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Unexpected error in Google Callback: {str(e)}", exc_info=True)
+        logging.exception("Unexpected error in Google callback")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     finally:
         await db.close()
