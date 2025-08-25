@@ -20,7 +20,8 @@ from app.utils.auth import (
     create_email_verification_token,
     hash_password,
     verify_password,
-    get_current_user,
+    get_current_user_cookie,            # add this
+    require_admin,                      # OR swap to require_admin_cookie if you change it below
 )
 from app.utils.aws_s3 import s3_client, AWS_BUCKET_NAME, AWS_REGION
 from app.utils.email_utils import send_verification_email
@@ -107,7 +108,7 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
 
 # Get current user's profile
 @router.get("/profile", response_model=UserResponse)
-async def get_profile(current_user: User = Depends(get_current_user)):
+async def get_profile(current_user: User = Depends(get_current_user_cookie)):
     return current_user
 
 # Update user avatar
@@ -115,7 +116,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
 async def update_avatar(
     avatar: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     if avatar.content_type not in ["image/jpeg", "image/png"]:
         raise HTTPException(status_code=400, detail="Only JPEG or PNG files are allowed.")
@@ -149,7 +150,7 @@ async def update_avatar(
 # Dashboard data
 @router.get("/dashboard", status_code=status.HTTP_200_OK)
 async def get_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.is_admin:
@@ -236,7 +237,7 @@ async def get_dashboard(
 async def update_profile(
     user_update: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     result = await db.execute(select(User).where(User.user_id == current_user.user_id))
     user = result.scalar()
@@ -305,7 +306,7 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email verification failed. Please try again.")
     
 @router.get("/settings", response_model=UserResponse)
-async def get_user_settings(current_user: User = Depends(get_current_user)):
+async def get_user_settings(current_user: User = Depends(get_current_user_cookie)):
     """
     Retrieve current user's settings (profile information).
     """
@@ -315,7 +316,7 @@ async def get_user_settings(current_user: User = Depends(get_current_user)):
 async def update_user_settings(
     user_update: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     """
     Update the current user's settings.
@@ -343,7 +344,7 @@ async def update_user_settings(
 async def get_user_modules(
     language_id: int = Query(..., description="Language ID for filtering modules"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     """
     Get modules for the current user filtered by language and with status, including lessons.
@@ -464,7 +465,7 @@ async def get_languages(db: AsyncSession = Depends(get_db)):
 async def get_tasks_for_lesson(
     lesson_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     """
     Fetch all tasks for a specific lesson.
@@ -519,7 +520,7 @@ async def get_tasks_for_lesson(
 async def get_task_by_id(
     task_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     """
     Fetch a single task by its task_id.
@@ -551,7 +552,7 @@ async def get_task_by_id(
     # Get current user's points
 @router.get("/points", response_model=dict)
 async def get_user_points(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_cookie)
 ):
     """
     Fetch the current user's points.
@@ -563,7 +564,7 @@ async def get_user_points(
 async def update_points(
     request: PointsUpdateRequest,  # Accepting from the request body
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     if not current_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -580,7 +581,7 @@ async def update_points(
 async def mark_lesson_complete(
     lesson_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     """
     Marks the lesson as complete only if the user has earned 70% of the total points.
@@ -644,7 +645,7 @@ async def complete_task(
     task_id: int,
     request: TaskCompletionRequest = Body(...),  # Use TaskCompletionRequest as the body
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_cookie),
 ):
     """
     Marks a task as completed for the user and updates the progress score.

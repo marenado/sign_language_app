@@ -10,6 +10,7 @@ from app.database import get_db
 import os
 import logging
 import re
+from fastapi import Cookie
 
 
 # Setup logging
@@ -27,6 +28,42 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Dependency for OAuth2 token extraction
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+
+# --- Cookie-based auth helpers ---
+
+async def get_current_user_cookie(
+    sl_access: str = Cookie(None),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    Resolve the current user from the HttpOnly 'sl_access' cookie.
+    """
+    if not sl_access:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(sl_access, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        is_admin = payload.get("is_admin", False)
+        if not email:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+        # keep role from token for quick checks
+        user.is_admin = is_admin
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+async def require_admin_cookie(current_user: User = Depends(get_current_user_cookie)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin privileges required.")
+    return current_user
+
 # Hash a password
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -35,26 +72,6 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-# Create a JWT access token
-# def create_access_token(data: dict) -> str:
-#     """
-#     Create a JWT token with custom claims for user roles.
-#     """
-#     to_encode = data.copy()
-#     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-#     to_encode.update({"exp": expire})
-#     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-#     logger.info(f"Token created with payload: {to_encode}")
-#     return token
-
-
-# def create_access_token(data: dict) -> str:
-#     to_encode = data.copy()
-#     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-#     to_encode.update({"exp": expire})
-#     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-#     logger.info(f"Token created with payload: {to_encode}")
-#     return token
 
 def create_access_token(data: dict, expire_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
     """
@@ -92,39 +109,6 @@ def refresh_access_token(token: str) -> str:
 
 
 
-
-# Get the current authenticated user
-# async def get_current_user(
-#     token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
-# ) -> User:
-#     try:
-#         # Decode the JWT
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         email: str = payload.get("sub")
-#         is_admin: bool = payload.get("is_admin", False)
-
-#         if email is None:
-#             logger.warning(f"Invalid token payload: {payload}")
-#             raise HTTPException(status_code=401, detail="Invalid token payload.")
-
-#         # Fetch user from database
-#         result = await db.execute(select(User).where(User.email == email))
-#         user = result.scalar_one_or_none()
-
-#         if not user:
-#             logger.error(f"User not found for email: {email}")
-#             raise HTTPException(status_code=404, detail="User not found.")
-
-#         # Attach role from token
-#         user.is_admin = is_admin
-
-#         logger.info(f"Authenticated user: {user.email}, is_admin: {is_admin}")
-#         return user
-
-#     except JWTError as e:
-#         logger.error(f"JWT error: {str(e)}")
-#         raise HTTPException(status_code=401, detail="Invalid or expired token.")
-
 def validate_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -155,12 +139,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 
 
 # Require admin privileges
-async def require_admin(current_user: User = Depends(get_current_user)):
-    """
-    Ensures the current user has admin privileges.
-    """
+async def require_admin(current_user: User = Depends(get_current_user_cookie)):
     if not current_user.is_admin:
-        logger.warning(f"Unauthorized admin access attempt by user: {current_user.email}")
+        logger.warning(f"Unauthorized admin access attempt by user: {getattr(current_user, 'email', 'unknown')}")
         raise HTTPException(status_code=403, detail="Admin privileges required.")
     logger.info(f"Admin access granted for user: {current_user.email}")
     return current_user

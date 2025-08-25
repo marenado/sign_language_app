@@ -7,12 +7,9 @@ from app.database import get_db
 from sqlalchemy.orm import selectinload
 from app.models.user import User
 from app.utils.auth import (
-    verify_email_verification_token,
-    create_access_token,
-    create_email_verification_token,
+    require_admin,              # now cookie-based
+    get_current_user_cookie,    # use this where you just need the current user
     hash_password,
-    verify_password,
-    get_current_user,
 )
 from app.models.module import Module
 from app.models.language import Language
@@ -40,7 +37,7 @@ router = APIRouter(
 
 # Fetch menu options based on user role
 @router.get("/menu-options")
-async def get_menu_options(current_user: User = Depends(get_current_user)):
+async def get_menu_options(current_user: User = Depends(get_current_user_cookie)):
     """
     Return menu options based on the user's role.
     Admins won't see the "Dashboard" tab.
