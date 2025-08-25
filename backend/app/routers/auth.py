@@ -13,7 +13,7 @@ import requests
 from sqlalchemy.exc import IntegrityError
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
 from app.schemas.auth import LoginRequest, TokenResponse, SignupRequest
-from app.utils.auth import verify_password, create_access_token, hash_password
+from app.utils.auth import verify_password, create_access_token, hash_password, create_refresh_token
 from sqlalchemy.future import select
 from app.schemas.auth import EmailValidationRequest
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
@@ -91,34 +91,41 @@ ACCESS_COOKIE_NAME = "sl_access"
 REFRESH_COOKIE_NAME = "sl_refresh"
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
-    # Cross-site cookies need SameSite=None; Secure
-    cookie_kwargs = dict(
-        httponly=True,
-        secure=True,
-        samesite="none",
-        domain=None,     # keep None; cookie is scoped to signlearn.onrender.com
-    )
-    # access cookie for all routes
-    response.set_cookie(
-        key=ACCESS_COOKIE_NAME,
-        value=access_token,
-        max_age=60*60,          # 1h
-        path="/",
-        **cookie_kwargs
-    )
-    # refresh cookie only on refresh route
-    response.set_cookie(
-        key=REFRESH_COOKIE_NAME,
-        value=refresh_token,
-        max_age=60*60*24*7,     # 7d
-        path="/auth/refresh",
-        **cookie_kwargs
-    )
+    _set_cookie_partitioned(response, ACCESS_COOKIE_NAME, access_token, path="/", max_age=60*60)              # 1h
+    _set_cookie_partitioned(response, REFRESH_COOKIE_NAME, refresh_token, path="/auth/refresh", max_age=60*60*24*7)
 
 def clear_auth_cookies(response: Response):
-    response.delete_cookie(ACCESS_COOKIE_NAME, path="/", samesite="none")
-    response.delete_cookie(REFRESH_COOKIE_NAME, path="/auth/refresh", samesite="none")
+    _clear_cookie_partitioned(response, ACCESS_COOKIE_NAME, path="/")
+    _clear_cookie_partitioned(response, REFRESH_COOKIE_NAME, path="/auth/refresh")
 
+
+# add near your cookie helpers
+def _set_cookie_partitioned(response, key, value, *, path="/", max_age: int | None = None):
+    # defensive: no CR/LF in cookie value
+    value = (value or "").replace("\r", "").replace("\n", "")
+    parts = [
+        f"{key}={value}",
+        f"Path={path}",
+        "Secure",
+        "HttpOnly",
+        "SameSite=None",
+        "Partitioned",            # 👈 CHIPS
+    ]
+    if max_age is not None:
+        parts.append(f"Max-Age={int(max_age)}")
+    response.headers.append("Set-Cookie", "; ".join(parts))
+
+def _clear_cookie_partitioned(response, key, *, path="/"):
+    parts = [
+        f"{key}=deleted",
+        f"Path={path}",
+        "Secure",
+        "HttpOnly",
+        "SameSite=None",
+        "Partitioned",
+        "Max-Age=0",
+    ]
+    response.headers.append("Set-Cookie", "; ".join(parts))
 
 
 # OAuth Configuration
@@ -255,32 +262,37 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/login")
 async def login(request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     try:
+        # 1) find the user
         result = await db.execute(select(User).where(User.email == request.email))
-        user = result.scalar_one_or_none()
-
+        user: User | None = result.scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # If account was created by Google/Facebook, there is no local hash
+        # 2) local-password accounts only
         if not user.password:
             raise HTTPException(
                 status_code=400,
-                detail="This account was created with Google. Please sign in with Google or reset your password."
+                detail="This account was created with Google/Facebook. Sign in with that provider or reset your password."
             )
 
-        # Verify password (guard against hash errors)
-        try:
-            if not verify_password(request.password, user.password):
-                raise HTTPException(status_code=401, detail="Invalid credentials")
-        except Exception as e:
-            logging.warning(f"Password verify error for {request.email}: {e}")
+        # 3) verify password
+        if not verify_password(request.password, user.password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        access_token  = create_access_token({"sub": user.email, "is_admin": user.is_admin})
-        refresh_token = create_access_token({"sub": user.email, "is_admin": user.is_admin}, expire_minutes=60*24*7)
+        # 4) issue tokens
+        is_admin = bool(user.is_admin)
+        access_token  = create_access_token({"sub": user.email, "is_admin": is_admin})
+        refresh_token = create_refresh_token({"sub": user.email, "is_admin": is_admin})
 
+        # 5) set cookies + also return tokens for bearer fallback
         set_auth_cookies(response, access_token, refresh_token)
-        return {"ok": True}  # frontend doesn’t need raw tokens
+        return {
+            "ok": True,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "is_admin": is_admin,
+        }
 
     except HTTPException:
         raise
@@ -289,6 +301,7 @@ async def login(request: LoginRequest, response: Response, db: AsyncSession = De
         raise HTTPException(status_code=500, detail="An error occurred during login.")
     finally:
         await db.close()
+
         
 
 
@@ -634,12 +647,26 @@ async def logout(response: Response):
 
 from fastapi import Cookie
 
+from fastapi import Cookie, Header
+
 @router.get("/me")
-async def me(sl_access: str = Cookie(None), db: AsyncSession = Depends(get_db)):
-    if not sl_access:
+async def me(
+    sl_access: str = Cookie(None),
+    authorization: str | None = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
+    # choose cookie if present, else bearer header
+    token = None
+    if sl_access:
+        token = sl_access
+    elif authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+
+    if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
     try:
-        payload = jwt.decode(sl_access, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
         if not email:
             raise HTTPException(status_code=401, detail="Not authenticated")
@@ -652,7 +679,7 @@ async def me(sl_access: str = Cookie(None), db: AsyncSession = Depends(get_db)):
         return {
             "email": user.email,
             "username": user.username,
-            "is_admin": user.is_admin,
+            "is_admin": bool(user.is_admin),
         }
     except JWTError:
         raise HTTPException(status_code=401, detail="Not authenticated")
