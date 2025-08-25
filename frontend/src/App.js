@@ -22,45 +22,42 @@ import api from "./services/api"; // axios instance with withCredentials: true
 const hasSession = () =>
   document.cookie.includes("sl_access=") || document.cookie.includes("sl_refresh=");
 
-const Login = ({ setIsAdmin }) => {
+const Login = ({ onLoggedIn }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
   // If session cookies already exist (e.g., after Google redirect), route user in
- useEffect(() => {
-  let alive = true;
-  (async () => {
-    try {
-      const { data } = await api.get("/auth/me");   // will 401 if not logged in
-      if (!alive) return;
-      setIsAdmin(data.is_admin);
-      navigate(data.is_admin ? "/admin/modules" : "/dashboard");
-    } catch {
-      // not logged in yet — keep the form
-    }
-  })();
-  return () => { alive = false; };
-}, [navigate, setIsAdmin]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await api.get("/auth/me"); // 401 if not authed
+        if (!alive) return;
+        onLoggedIn(!!data.is_admin);
+        navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
+      } catch {
+        /* keep form */
+      }
+    })();
+    return () => { alive = false; };
+  }, [navigate, onLoggedIn]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setMessage("");
-
     try {
-      // Backend sets HttpOnly cookies
-      await api.post("/auth/login", { email, password });
-
-      // Hydrate user from cookie-backed session
+      await api.post("/auth/login", { email, password }); // sets cookies
       const { data } = await api.get("/auth/me");
-      setIsAdmin(data.is_admin);
-      navigate(data.is_admin ? "/admin/modules" : "/dashboard");
+      onLoggedIn(!!data.is_admin);
+      navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
     } catch (error) {
       console.error("Login error:", error.response?.data?.detail || error.message);
       setMessage("Invalid email or password. Please try again.");
     }
   };
+
 
   const handleFacebookLogin = () => {
     window.location.href = "https://signlearn.onrender.com/auth/facebook/login";
@@ -124,46 +121,79 @@ const Login = ({ setIsAdmin }) => {
   );
 };
 
+
+function Protected({ authenticated, requireAdmin = false, isAdmin = false, children }) {
+  if (!authenticated) return <Navigate to="/" replace />;
+  if (requireAdmin && !isAdmin) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+
 const App = () => {
-  const [isAdmin, setIsAdmin] = useState(null);
+  const [auth, setAuth] = useState({ ready: false, authenticated: false, isAdmin: false });
 
-  // Bootstrap auth state from cookies
+  // Bootstrap from cookie-backed session
   useEffect(() => {
-  let alive = true;
-  (async () => {
-    try {
-      const { data } = await api.get("/auth/me");
-      if (!alive) return;
-      setIsAdmin(data.is_admin);
-    } catch {
-      if (!alive) return;
-      setIsAdmin(false);
-    }
-  })();
-  return () => { alive = false; };
-}, []);
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await api.get("/auth/me");
+        if (!alive) return;
+        setAuth({ ready: true, authenticated: true, isAdmin: !!data.is_admin });
+      } catch {
+        if (!alive) return;
+        setAuth({ ready: true, authenticated: false, isAdmin: false });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
 
-  if (isAdmin === null) {
-    return <div>Loading...</div>;
-  }
+
+  if (!auth.ready) return <div>Loading…</div>;
 
   return (
     <Router>
       <Routes>
         {/* Login and Signup */}
           
-        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
+          <Route
+          path="/"
+          element={
+            auth.authenticated
+              ? <Navigate to={auth.isAdmin ? "/admin/modules" : "/dashboard"} replace />
+              : <Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />
+          }
+        />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/verify-email" element={<EmailVerified />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Admin Routes */}
+         {/* Admin */}
         <Route
           path="/admin/modules"
-          element={isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
+          element={
+            <Protected authenticated={auth.authenticated} requireAdmin isAdmin={auth.isAdmin}>
+              <ModuleManagement />
+            </Protected>
+          }
         />
         <Route
           path="/admin/settings"
-          element={isAdmin ? <Settings /> : <div>Access Denied</div>}
+          element={
+            <Protected authenticated={auth.authenticated} requireAdmin isAdmin={auth.isAdmin}>
+              <Settings />
+            </Protected>
+          }
+        />
+        <Route
+          path="/admin/lessons/:lessonId/tasks"
+          element={
+            <Protected authenticated={auth.authenticated} requireAdmin isAdmin={auth.isAdmin}>
+              <TaskList />
+            </Protected>
+          }
         />
 
         {/* User Routes */}
@@ -181,9 +211,6 @@ const App = () => {
           path="/admin/lessons/:lessonId/tasks"
           element={isAdmin ? <TaskList /> : <div>Access Denied</div>}
         />
-        <Route path="/verify-email" element={<EmailVerified />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/modules" element={!isAdmin ? <ModulePage /> : <div>Access Denied</div>} />
         <Route path="/lessons/:lessonId/tasks/:taskId" element={<TasksPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />
