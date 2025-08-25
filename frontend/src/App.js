@@ -23,9 +23,52 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
-/* -------------------- PUBLIC WELCOME @ "/" -------------------- */
-const Welcome = () => {
+// -------- Login / Welcome --------
+const Login = ({ onLoggedIn }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
   const navigate = useNavigate();
+
+  // If session cookies already exist (e.g., after Google/Facebook redirect),
+  // auto-route the user in. Comment this effect out if you want to ALWAYS
+  // show the welcome page even when already authenticated.
+  // useEffect(() => {
+  //   let alive = true;
+  //   (async () => {
+  //     try {
+  //       const { data } = await api.get("/auth/me"); // 401 if not authed
+  //       if (!alive) return;
+  //       onLoggedIn(!!data.is_admin);
+  //       navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
+  //     } catch {
+  //       /* keep welcome form */
+  //     }
+  //   })();
+  //   return () => { alive = false; };
+  // }, [navigate, onLoggedIn]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setMessage("");
+    try {
+      await api.post("/auth/login", { email, password }); // sets HttpOnly cookies
+      const { data } = await api.get("/auth/me");
+      onLoggedIn(!!data.is_admin);
+      navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
+    } catch (error) {
+      console.error("Login error:", error.response?.data?.detail || error.message);
+      setMessage("Invalid email or password. Please try again.");
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = "https://signlearn.onrender.com/auth/google/login";
+  };
+  const handleFacebookLogin = () => {
+    window.location.href = "https://signlearn.onrender.com/auth/facebook/login";
+  };
+
   return (
     <Container>
       <LeftSection>
@@ -37,112 +80,76 @@ const Welcome = () => {
             speed={20}
           />
         </Description>
-
-        <div style={{ marginTop: 24 }}>
-          <Button onClick={() => navigate("/login")}>Sign in</Button>
-          <SignUpButton style={{ marginLeft: 12 }} onClick={() => navigate("/signup")}>
-            Create a new account
-          </SignUpButton>
-        </div>
-      </LeftSection>
-      <RightSection />
-    </Container>
-  );
-};
-
-/* -------------------- LOGIN @ "/login" -------------------- */
-/* No auto-check on "/", ONLY here. */
-const Login = ({ onLoggedIn }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
-  const navigate = useNavigate();
-
-  // If cookies already exist (e.g., after social redirect), route user in.
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const { data } = await api.get("/auth/me"); // 401 if not authed
-        if (!alive) return;
-        onLoggedIn(!!data.is_admin);
-        navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
-      } catch {
-        /* stay on login */
-      }
-    })();
-    return () => { alive = false; };
-  }, [navigate, onLoggedIn]);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setMessage("");
-    try {
-      await api.post("/auth/login", { email, password }); // sets HttpOnly cookies
-      const { data } = await api.get("/auth/me");
-      onLoggedIn(!!data.is_admin);
-      navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
-    } catch (error) {
-      setMessage(error.response?.data?.detail || "Invalid email or password. Please try again.");
-    }
-  };
-
-  const handleGoogleLogin   = () => (window.location.href = "https://signlearn.onrender.com/auth/google/login");
-  const handleFacebookLogin = () => (window.location.href = "https://signlearn.onrender.com/auth/facebook/login");
-
-  return (
-    <Container>
-      <LeftSection>
-        <h1>SignLearn</h1>
-        <p>Unlock the Language of Hands</p>
-        <Description>
-          <TypedText text="Practice, learn, and connect — one platform, many sign languages." speed={20} />
-        </Description>
       </LeftSection>
 
       <RightSection>
         <Form onSubmit={handleLogin}>
           <h2>Sign in</h2>
-          <Input type="text" placeholder="Email or username" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Input
+            type="text"
+            placeholder="Email or username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <Input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
           <Button type="submit">Sign in</Button>
           {message && <Message>{message}</Message>}
 
-          <ForgotPasswordLink onClick={() => navigate("/forgot-password")}>Forgot Password?</ForgotPasswordLink>
+          <ForgotPasswordLink onClick={() => navigate("/forgot-password")}>
+            Forgot Password?
+          </ForgotPasswordLink>
 
           <Separator>Or continue with</Separator>
           <SocialButtons>
-            <SocialButton className="google" onClick={handleGoogleLogin}>Sign in with Google</SocialButton>
-            <SocialButton className="facebook" onClick={handleFacebookLogin}>Sign in with Facebook</SocialButton>
+            <SocialButton className="google" onClick={handleGoogleLogin}>
+              Sign in with Google
+            </SocialButton>
+            <SocialButton className="facebook" onClick={handleFacebookLogin}>
+              Sign in with Facebook
+            </SocialButton>
           </SocialButtons>
 
-          <SignUpButton onClick={() => navigate("/signup")}>Create a new account</SignUpButton>
+          <SignUpButton onClick={() => navigate("/signup")}>
+            Create a new account
+          </SignUpButton>
         </Form>
       </RightSection>
     </Container>
   );
 };
 
-/* -------------------- Route guards -------------------- */
-function Protected({ authenticated, children }) {
+// -------- Simple route guards --------
+function Protected({ ready, authenticated, children }) {
+  if (!ready) return null;            // or a spinner
   return authenticated ? children : <Navigate to="/login" replace />;
 }
-function AdminOnly({ authenticated, isAdmin, children }) {
+
+function AdminOnly({ ready, authenticated, isAdmin, children }) {
+  if (!ready) return null;
   if (!authenticated) return <Navigate to="/login" replace />;
   if (!isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }
-function UserOnly({ authenticated, isAdmin, children }) {
+
+function UserOnly({ ready, authenticated, isAdmin, children }) {
+  if (!ready) return null;
   if (!authenticated) return <Navigate to="/login" replace />;
   if (isAdmin) return <Navigate to="/admin/modules" replace />;
   return children;
 }
 
-/* -------------------- App -------------------- */
+// -------- App --------
 const App = () => {
   const [auth, setAuth] = useState({ ready: false, authenticated: false, isAdmin: false });
 
-  // Bootstrap from cookie-backed session (does NOT navigate)
+  // Bootstrap from cookie-backed session
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -161,7 +168,6 @@ const App = () => {
   const logout = async () => {
     try { await api.post("/auth/logout"); } catch {}
     setAuth({ ready: true, authenticated: false, isAdmin: false });
-    // Sidebar should navigate("/") after calling this.
   };
 
   if (!auth.ready) return <div>Loading…</div>;
@@ -170,19 +176,13 @@ const App = () => {
     <AuthContext.Provider value={{ auth, setAuth, logout }}>
       <Router>
         <Routes>
-          {/* PUBLIC welcome page — no auth calls, no redirects */}
-          <Route path="/" element={<Welcome />} />
-
-          {/* Login: if already authed, jump to role home */}
+          {/* Welcome page lives at "/" */}
           <Route
-            path="/login"
-            element={
-              auth.authenticated
-                ? <Navigate to={auth.isAdmin ? "/admin/modules" : "/dashboard"} replace />
-                : <Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />
-            }
+            path="/"
+            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
           />
-
+          
+        
           {/* Public auth pages */}
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailVerified />} />
@@ -193,7 +193,7 @@ const App = () => {
           <Route
             path="/admin/modules"
             element={
-              <AdminOnly authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
+              <AdminOnly ready={auth.ready} authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
                 <ModuleManagement />
               </AdminOnly>
             }
@@ -201,7 +201,7 @@ const App = () => {
           <Route
             path="/admin/settings"
             element={
-              <AdminOnly authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
+              <AdminOnly  ready={auth.ready} authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
                 <Settings />
               </AdminOnly>
             }
@@ -209,7 +209,7 @@ const App = () => {
           <Route
             path="/admin/lessons/:lessonId/tasks"
             element={
-              <AdminOnly authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
+              <AdminOnly ready={auth.ready} authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
                 <TaskList />
               </AdminOnly>
             }
@@ -259,7 +259,7 @@ const App = () => {
             }
           />
 
-          {/* Fallback — keep people on the public home */}
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
@@ -301,7 +301,7 @@ const Input = styled.input`
   border: 1px solid #ccc; border-radius: 5px; font-size: 1rem;
 `;
 const Button = styled.button`
-  padding: 10px 16px; background-color: #4a316f; color: #fff;
+  width: 100%; padding: 10px; background-color: #4a316f; color: #fff;
   border: none; border-radius: 5px; font-size: 1rem; cursor: pointer;
   &:hover { background-color: #3a2559; }
 `;
