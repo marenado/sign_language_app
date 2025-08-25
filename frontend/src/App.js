@@ -24,7 +24,7 @@ export const AuthContext = createContext({
 });
 
 // -------- Login / Welcome --------
-const Login = ({ onLoggedIn }) => {
+const Login = ({ onLoggedIn, autoCheck = false }) =>  {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -33,7 +33,8 @@ const Login = ({ onLoggedIn }) => {
   // If session cookies already exist (e.g., after Google/Facebook redirect),
   // auto-route the user in. Comment this effect out if you want to ALWAYS
   // show the welcome page even when already authenticated.
-  useEffect(() => {
+    useEffect(() => {
+   if (!autoCheck) return;                   // <-- do nothing on "/"
     let alive = true;
     (async () => {
       try {
@@ -42,11 +43,11 @@ const Login = ({ onLoggedIn }) => {
         onLoggedIn(!!data.is_admin);
         navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
       } catch {
-        /* keep welcome form */
+        /* stay on login */
       }
     })();
     return () => { alive = false; };
-  }, [navigate, onLoggedIn]);
+  }, [autoCheck, navigate]); 
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -127,7 +128,7 @@ const Login = ({ onLoggedIn }) => {
 
 // -------- Simple route guards --------
 function Protected({ authenticated, children }) {
-  return authenticated ? children : <Navigate to="/" replace />; // go to welcome
+  return authenticated ? children : <Navigate to="/" replace />;
 }
 function AdminOnly({ authenticated, isAdmin, children }) {
   if (!authenticated) return <Navigate to="/" replace />;
@@ -172,16 +173,15 @@ const App = () => {
       <Router>
         <Routes>
           {/* Welcome page lives at "/" */}
-          <Route
-            path="/"
-            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
-          />
+           <Route
+   path="/"
+   element={<Login autoCheck={false} onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
+ />
           {/* Keep /login as an alias to the same welcome page */}
-          <Route
-            path="/login"
-            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
-          />
-
+           <Route
+  path="/login"
+   element={<Login autoCheck onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
+ />
           {/* Public auth pages */}
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailVerified />} />
