@@ -152,11 +152,8 @@ const App = () => {
     <Router>
       <Routes>
         {/* Login and Signup */}
-          <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
-          <Route path="/login" element={<Login setIsAdmin={setIsAdmin} />} />
-    {/* optional: catch-all */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-        {/* <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} /> */}
+          
+        <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
         <Route path="/signup" element={<SignUp />} />
 
         {/* Admin Routes */}
