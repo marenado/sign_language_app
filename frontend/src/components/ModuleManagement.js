@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
 import Sidebar from "./Sidebar";
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -173,9 +172,7 @@ const closeEditLessonModal = () => {
     setTimeout(async () => {
       try {
         // Send the delete request
-        await axios.delete(`${BASE_URL}/admin/lessons/${activeLessonId}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        });
+        await api.delete(`/admin/lessons/${activeLessonId}`);
         console.log(`Lesson ${activeLessonId} deleted successfully.`);
   
         // Update the local state to remove the deleted lesson
@@ -264,9 +261,7 @@ const handleDeleteModule = async () => {
   if (!moduleToDelete) return;
 
   try {
-    await axios.delete(`${BASE_URL}/admin/modules/${moduleToDelete.module_id}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-    });
+    await api.delete(`/admin/modules/${moduleToDelete.module_id}`);
     fetchModules(); 
     closeDeleteDialog(); 
   } catch (error) {
@@ -292,9 +287,9 @@ const searchVideos = async () => {
   if (!videoSearchQuery.trim()) return; // Skip if search query is empty
 
   try {
-    const res = await axios.get(`${BASE_URL}/admin/videos?search=${videoSearchQuery}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-    });
+     const res = await api.get("/admin/videos", {
+   params: { search: videoSearchQuery },
+ });
     setVideoSearchResults(res.data);
   } catch (error) {
     // console.error("Error fetching videos:", error.response?.data || error.message);
@@ -311,9 +306,7 @@ const searchVideos = async () => {
   // Fetch all available languages from the backend
   const fetchLanguages = useCallback(async () => {
     try {
-      const res = await axios.get(`${BASE_URL}/admin/languages`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
+      const res = await api.get("/admin/languages");
       setLanguages(res.data);
       if (res.data.length > 0) {
         setSelectedLanguage(res.data[0].id); // Default to the first language
@@ -342,10 +335,7 @@ const searchVideos = async () => {
         // console.log("Lesson data to be sent:", lessonData);
 
         try {
-            const response = await axios.post(`${BASE_URL}/admin/lessons`, lessonData, {
-                headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-            });
-            // console.log("Lesson created successfully:", response.data);
+            const response = await api.post("/admin/lessons", lessonData);
             await fetchLessons(selectedModule.module_id);
             closeLessonModal();
         } catch (error) {
@@ -364,16 +354,10 @@ const searchVideos = async () => {
     }
   
     try {
-      const response = await axios.post(
-        `${BASE_URL}/admin/languages`,
-        {
-          code: newLanguage.code,
-          name: newLanguage.name,
-        },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }
-      );
+     const response = await api.post("/admin/languages", {
+     code: newLanguage.code,
+     name: newLanguage.name,
+   });
   
       // console.log("Language created successfully:", response.data);
   
@@ -400,12 +384,9 @@ const searchVideos = async () => {
     if (!isAuthenticated || !selectedLanguage) return;
   
     try {
-      const res = await axios.get(
-        `${BASE_URL}/admin/modules?language_id=${selectedLanguage}`,
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }
-      );
+      const res = await api.get("/admin/modules", {
+     params: { language_id: selectedLanguage },
+   });
       const modulesData = res.data;
       setModules(modulesData);
   
@@ -438,25 +419,22 @@ const searchVideos = async () => {
     // console.log(`Fetching lessons for module ID: ${moduleId}`); // Debug log
   
     try {
-      const response = await axios.get(`${BASE_URL}/admin/lessons?module_id=${moduleId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
-      setLessons((prevLessons) => ({
-        ...prevLessons,
-        [moduleId]: response.data,
-      }));
-      // console.log(`Lessons fetched for module ${moduleId}:`, response.data);
-    } catch (error) {
-      console.error(`Error fetching lessons for module ${moduleId}:`, error.response?.data || error.message);
-    }
+       const { data } = await api.get("/admin/lessons", {
+     params: { module_id: moduleId },
+   });
+   setLessons(prev => ({ ...prev, [moduleId]: data }));
+ } catch (error) {
+   console.error(
+     `Error fetching lessons for module ${moduleId}:`,
+     error.response?.data || error.message
+   );
+ }
   };
   
 
   const fetchTasks = async (lessonId) => {
     try {
-      const res = await axios.get(`${BASE_URL}/admin/tasks?lesson_id=${lessonId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
+      const res = await api.get("/admin/tasks", { params: { lesson_id: lessonId } });
       setTasks((prev) => ({ ...prev, [lessonId]: res.data }));
     } catch (error) {
       console.error(`Error fetching tasks for lesson ${lessonId}:`, error.response?.data || error.message);
@@ -492,13 +470,7 @@ const updateModule = async (e) => {
     return;
   }
   try {
-    await axios.put(
-      `${BASE_URL}/admin/modules/${selectedModule.module_id}`,
-      selectedModule,
-      {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      }
-    );
+    await api.put(`/admin/modules/${selectedModule.module_id}`, selectedModule)
     fetchModules();
     setIsEditModalOpen(false); 
     setSelectedModule(null); 
@@ -513,21 +485,20 @@ const createTask = async () => {
     console.error("No lesson selected.");
     return;
   }
-  try {
-    await axios.post(
-      `${BASE_URL}/admin/tasks`,
-      { ...taskData, lesson_id: selectedLesson.lesson_id, video_id: selectedVideo?.video_id },
-      {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      }
-    );
-    fetchTasks(selectedLesson.lesson_id);
-    setIsTaskModalOpen(false);
-    setTaskData({ task_type: "", content: {}, correct_answer: {}, points: 1, version: 1 });
-    setSelectedVideo(null);
-  } catch (error) {
-    console.error("Error creating task:", error.response?.data || error.message);
-  }
+   try {
+   const payload = {
+     ...taskData,
+     lesson_id: selectedLesson.lesson_id,
+     video_id: selectedVideo?.video_id ?? null,
+   };
+   await api.post("/admin/tasks", payload);
+   await fetchTasks(payload.lesson_id);
+   setIsTaskModalOpen(false);
+   setTaskData({ task_type: "", content: {}, correct_answer: {}, points: 1, version: 1 });
+   setSelectedVideo(null);
+ } catch (error) {
+   console.error("Error creating task:", error.response?.data || error.message);
+ }
 };
 
 
@@ -541,19 +512,22 @@ const createTask = async () => {
       console.error("No language selected.");
       return;
     }
-    try {
-      await axios.post(
-        `${BASE_URL}/admin/modules`,
-        { ...moduleData, language_id: selectedLanguage },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }
-      );
-      fetchModules();
-      setModuleData({ title: "", description: "", prerequisite_mod: null, version: 1 });
-    } catch (error) {
-      console.error("Error creating module:", error.response?.data || error.message);
-    }
+     try {
+   const payload = {
+     ...moduleData,
+     language_id: selectedLanguage,
+     // ensure "None" / empty -> null, so backend gets proper null
+     prerequisite_mod:
+       moduleData.prerequisite_mod === "none" || moduleData.prerequisite_mod === ""
+         ? null
+         : moduleData.prerequisite_mod,
+   };
+   await api.post("/admin/modules", payload);
+   await fetchModules();
+   setModuleData({ title: "", description: "", prerequisite_mod: null, version: 1 });
+ } catch (error) {
+   console.error("Error creating module:", error.response?.data || error.message);
+ }
   };
 
   useEffect(() => {
