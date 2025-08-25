@@ -174,24 +174,39 @@ async def google_login(request: Request):
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        # Fetch access token from Google
+       
         token = await oauth.google.authorize_access_token(request)
-        user_info = token.get("userinfo") or jwt.decode(token["id_token"], options={"verify_signature": False})
-        email = user_info["email"]
-      
+
+    
+        try:
+            userinfo = await oauth.google.parse_id_token(request, token)  # verifies sig & claims
+        except Exception as e:
+            logging.warning(f"[google_callback] parse_id_token failed: {e}. Falling back to userinfo.")
+            
+            resp = await oauth.google.get(
+                "https://openidconnect.googleapis.com/v1/userinfo",
+                token=token,
+            )
+            userinfo = resp.json()
+
+        email = userinfo.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Google did not return an email address")
+
+       
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
 
         if not user:
-            name = user_info.get("name", email.split("@")[0])
+            name = userinfo.get("name") or email.split("@")[0]
             user = User(email=email, username=name, password="", is_verified=True)
             db.add(user)
             await db.commit()
 
-        # Generate access token
+        
         access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
 
-    
+       
         return RedirectResponse(f"{FRONTEND_URL}/?token={access_token}")
 
     except HTTPException as http_err:
@@ -202,6 +217,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     finally:
         await db.close()
+
 
 
         
