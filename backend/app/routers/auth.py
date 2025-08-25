@@ -84,6 +84,29 @@ conf = ConnectionConfig(
 
 serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY", "default_secret_key"))
 
+from fastapi import Response, Request
+from datetime import timedelta
+
+ACCESS_COOKIE_NAME = "sl_access"
+REFRESH_COOKIE_NAME = "sl_refresh"
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
+    # Lax works for your current subdomains; switch to "none" if you ever cross domains.
+    cookie_kwargs = dict(httponly=True, secure=True, samesite="lax")
+    # Access ~1 hour
+    response.set_cookie(
+        ACCESS_COOKIE_NAME, access_token, max_age=60*60, path="/", **cookie_kwargs
+    )
+    # Refresh ~7 days (limit path to refresh route so it’s not sent everywhere)
+    response.set_cookie(
+        REFRESH_COOKIE_NAME, refresh_token, max_age=60*60*24*7, path="/auth/refresh", **cookie_kwargs
+    )
+
+def clear_auth_cookies(response: Response):
+    response.delete_cookie(ACCESS_COOKIE_NAME, path="/")
+    response.delete_cookie(REFRESH_COOKIE_NAME, path="/auth/refresh")
+
+
 # OAuth Configuration
 oauth = OAuth()
 oauth.register(
@@ -174,40 +197,37 @@ async def google_login(request: Request):
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-       
         token = await oauth.google.authorize_access_token(request)
 
-    
+        # Try verified ID token; fall back to userinfo
         try:
-            userinfo = await oauth.google.parse_id_token(request, token)  # verifies sig & claims
+            userinfo = await oauth.google.parse_id_token(request, token)
         except Exception as e:
             logging.warning(f"[google_callback] parse_id_token failed: {e}. Falling back to userinfo.")
-            
-            resp = await oauth.google.get(
-                "https://openidconnect.googleapis.com/v1/userinfo",
-                token=token,
-            )
+            resp = await oauth.google.get("https://openidconnect.googleapis.com/v1/userinfo", token=token)
             userinfo = resp.json()
 
         email = userinfo.get("email")
         if not email:
             raise HTTPException(status_code=400, detail="Google did not return an email address")
 
-       
+        # Upsert user
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
-
         if not user:
             name = userinfo.get("name") or email.split("@")[0]
             user = User(email=email, username=name, password="", is_verified=True)
             db.add(user)
             await db.commit()
 
-        
+        # Create tokens
         access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
+        refresh_token = create_access_token({"sub": email, "is_admin": user.is_admin}, expire_minutes=60*24*7)
 
-       
-        return RedirectResponse(f"{FRONTEND_URL}/?token={access_token}")
+        # Set cookies on redirect; no token in the URL
+        resp = RedirectResponse(f"{FRONTEND_URL}/")
+        set_auth_cookies(resp, access_token, refresh_token)
+        return resp
 
     except HTTPException as http_err:
         logging.error(f"HTTP Exception in Google Callback: {str(http_err)}")
@@ -219,31 +239,25 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         await db.close()
 
 
-
         
 
 @router.post("/login")
-async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """
-    Authenticate the user and issue access and refresh tokens.
-    """
+async def login(request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     try:
-        # Fetch user from database by email
         result = await db.execute(select(User).where(User.email == request.email))
         user = result.scalar_one_or_none()
 
-        # Verify user credentials
         if not user or not verify_password(request.password, user.password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # Generate access and refresh tokens
         access_token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
-        refresh_token = create_access_token(
-            {"sub": user.email, "is_admin": user.is_admin},
-            expire_minutes=1440,  # Refresh token valid for 24 hours
-        )
+        refresh_token = create_access_token({"sub": user.email, "is_admin": user.is_admin}, expire_minutes=60*24*7)
 
-        # Return tokens
+        # Set HttpOnly cookies
+        set_auth_cookies(response, access_token, refresh_token)
+
+        # TEMP: keep tokens in body if your frontend still expects them.
+        # You can switch to {"message": "ok"} after updating the frontend to use cookies.
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -255,6 +269,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="An error occurred during login.")
     finally:
         await db.close()
+
 
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
@@ -591,38 +606,68 @@ async def check_email(payload: CheckEmailRequest, db: AsyncSession = Depends(get
     finally:
         await db.close()
 
+@router.post("/logout")
+async def logout(response: Response):
+    clear_auth_cookies(response)
+    return {"message": "logged out"}
+
+
+@router.get("/me")
+async def me(request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        token = request.cookies.get(ACCESS_COOKIE_NAME)
+        if not token:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return {"email": user.email, "username": user.username, "is_admin": user.is_admin}
+    finally:
+        await db.close()
+
 
 @router.post("/refresh")
 async def refresh_access_token_endpoint(
-    request: TokenRefreshRequest,
+    response: Response,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        # Decode refresh token
-        payload = jwt.decode(request.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
+        refresh = request.cookies.get(REFRESH_COOKIE_NAME)
+        if not refresh:
+            raise HTTPException(status_code=401, detail="No refresh cookie")
 
+        payload = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
         if not email:
             raise HTTPException(status_code=401, detail="Invalid refresh token.")
 
-        # Fetch user from database
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
-
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # Generate new access token
-        access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
-
-        return {"access_token": access_token}
+        new_access = create_access_token({"sub": email, "is_admin": user.is_admin})
+        # Set a fresh access cookie (1h)
+        response.set_cookie(
+            ACCESS_COOKIE_NAME, new_access, max_age=60*60, path="/",
+            httponly=True, secure=True, samesite="lax"
+        )
+        return {"message": "refreshed"}
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token has expired.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token.")
     finally:
-        await db.close() 
-    
+        await db.close()
+
 
 
     
