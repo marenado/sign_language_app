@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import TypedText from "./components/TypedText";
 import styled from "styled-components";
-import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from "react-router-dom";
 
 import SignUp from "./components/SignUp";
 import DictionaryPage from "./components/DictionaryPage";
