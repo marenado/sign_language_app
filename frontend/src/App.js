@@ -1,70 +1,67 @@
-import React, { useState, useEffect, createContext } from "react";
-import styled from "styled-components";
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
 import TypedText from "./components/TypedText";
+import styled from "styled-components";
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from "react-router-dom";
 
 import SignUp from "./components/SignUp";
 import DictionaryPage from "./components/DictionaryPage";
 import TasksPage from "./components/TasksPage";
 import Dashboard from "./components/Dashboard";
 import TaskList from "./components/TaskList";
+// import TaskCreation from "./components/TaskCreation";
 import Settings from "./components/Settings";
 import EmailVerified from "./components/EmailVerified";
 import ModulePage from "./components/ModulePage";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 import ModuleManagement from "./components/ModuleManagement";
-import api from "./services/api"; // axios with { withCredentials: true }
+import api from "./services/api"; // axios instance with withCredentials: true
 
-// -------- Auth context (used by Sidebar/Dashboard) --------
-export const AuthContext = createContext({
-  auth: { ready: false, authenticated: false, isAdmin: false },
-  setAuth: () => {},
-  logout: () => {},
-});
 
-// -------- Login / Welcome --------
-const Login = ({ onLoggedIn }) => {
+// Detect if the backend session cookies exist
+const hasSession = () =>
+  document.cookie.includes("sl_access=") || document.cookie.includes("sl_refresh=");
+
+const Login = ({ setIsAdmin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
-  // If session cookies already exist (e.g., after Google/Facebook redirect),
-  // auto-route the user in. Comment this effect out if you want to ALWAYS
-  // show the welcome page even when already authenticated.
-  // useEffect(() => {
-  //   let alive = true;
-  //   (async () => {
-  //     try {
-  //       const { data } = await api.get("/auth/me"); // 401 if not authed
-  //       if (!alive) return;
-  //       onLoggedIn(!!data.is_admin);
-  //       navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
-  //     } catch {
-  //       /* keep welcome form */
-  //     }
-  //   })();
-  //   return () => { alive = false; };
-  // }, [navigate, onLoggedIn]);
+  // If session cookies already exist (e.g., after Google redirect), route user in
+ useEffect(() => {
+  let alive = true;
+  (async () => {
+    try {
+      const { data } = await api.get("/auth/me");   // will 401 if not logged in
+      if (!alive) return;
+      setIsAdmin(data.is_admin);
+      navigate(data.is_admin ? "/admin/modules" : "/dashboard");
+    } catch {
+      // not logged in yet — keep the form
+    }
+  })();
+  return () => { alive = false; };
+}, [navigate, setIsAdmin]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setMessage("");
+
     try {
-      await api.post("/auth/login", { email, password }); // sets HttpOnly cookies
+      // Backend sets HttpOnly cookies
+      await api.post("/auth/login", { email, password });
+
+      // Hydrate user from cookie-backed session
       const { data } = await api.get("/auth/me");
-      onLoggedIn(!!data.is_admin);
-      navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
+      setIsAdmin(data.is_admin);
+      navigate(data.is_admin ? "/admin/modules" : "/dashboard");
     } catch (error) {
       console.error("Login error:", error.response?.data?.detail || error.message);
       setMessage("Invalid email or password. Please try again.");
     }
   };
 
-  const handleGoogleLogin = () => {
-    window.location.href = "https://signlearn.onrender.com/auth/google/login";
-  };
   const handleFacebookLogin = () => {
     window.location.href = "https://signlearn.onrender.com/auth/facebook/login";
   };
@@ -108,14 +105,16 @@ const Login = ({ onLoggedIn }) => {
 
           <Separator>Or continue with</Separator>
           <SocialButtons>
-            <SocialButton className="google" onClick={handleGoogleLogin}>
+            <SocialButton
+              className="google"
+              onClick={() => (window.location.href = "https://signlearn.onrender.com/auth/google/login")}
+            >
               Sign in with Google
             </SocialButton>
             <SocialButton className="facebook" onClick={handleFacebookLogin}>
               Sign in with Facebook
             </SocialButton>
           </SocialButtons>
-
           <SignUpButton onClick={() => navigate("/signup")}>
             Create a new account
           </SignUpButton>
@@ -125,145 +124,74 @@ const Login = ({ onLoggedIn }) => {
   );
 };
 
-// -------- Simple route guards --------
-function Protected({ ready, authenticated, children }) {
-  if (!ready) return null;            // or a spinner
-  return authenticated ? children : <Navigate to="/login" replace />;
-}
-
-function AdminOnly({ ready, authenticated, isAdmin, children }) {
-  if (!ready) return null;
-  if (!authenticated) return <Navigate to="/login" replace />;
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
-  return children;
-}
-
-function UserOnly({ ready, authenticated, isAdmin, children }) {
-  if (!ready) return null;
-  if (!authenticated) return <Navigate to="/login" replace />;
-  if (isAdmin) return <Navigate to="/admin/modules" replace />;
-  return children;
-}
-
-// -------- App --------
 const App = () => {
-  const [auth, setAuth] = useState({ ready: false, authenticated: false, isAdmin: false });
+  const [isAdmin, setIsAdmin] = useState(null);
 
-  // Bootstrap from cookie-backed session
+  // Bootstrap auth state from cookies
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const { data } = await api.get("/auth/me");
-        if (!alive) return;
-        setAuth({ ready: true, authenticated: true, isAdmin: !!data.is_admin });
-      } catch {
-        if (!alive) return;
-        setAuth({ ready: true, authenticated: false, isAdmin: false });
-      }
-    })();
-    return () => { alive = false; };
-  }, []);
+  let alive = true;
+  (async () => {
+    try {
+      const { data } = await api.get("/auth/me");
+      if (!alive) return;
+      setIsAdmin(data.is_admin);
+    } catch {
+      if (!alive) return;
+      setIsAdmin(false);
+    }
+  })();
+  return () => { alive = false; };
+}, []);
 
-  const logout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
-    setAuth({ ready: true, authenticated: false, isAdmin: false });
-  };
 
-  if (!auth.ready) return <div>Loading…</div>;
+  if (isAdmin === null) {
+    return <div>Loading...</div>;
+  }
 
   return (
-    <AuthContext.Provider value={{ auth, setAuth, logout }}>
-      <Router>
-        <Routes>
-          {/* Welcome page lives at "/" */}
-          <Route
-            path="/"
-            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
-          />
-          
-        
-          {/* Public auth pages */}
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/verify-email" element={<EmailVerified />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+    <Router>
+      <Routes>
+        {/* Login and Signup */}
+          <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} />
+          <Route path="/login" element={<Login setIsAdmin={setIsAdmin} />} />
+    {/* optional: catch-all */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* <Route path="/" element={<Login setIsAdmin={setIsAdmin} />} /> */}
+        <Route path="/signup" element={<SignUp />} />
 
-          {/* Admin */}
-          <Route
-            path="/admin/modules"
-            element={
-              <AdminOnly ready={auth.ready} authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
-                <ModuleManagement />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="/admin/settings"
-            element={
-              <AdminOnly  ready={auth.ready} authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
-                <Settings />
-              </AdminOnly>
-            }
-          />
-          <Route
-            path="/admin/lessons/:lessonId/tasks"
-            element={
-              <AdminOnly ready={auth.ready} authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
-                <TaskList />
-              </AdminOnly>
-            }
-          />
+        {/* Admin Routes */}
+        <Route
+          path="/admin/modules"
+          element={isAdmin ? <ModuleManagement /> : <div>Access Denied</div>}
+        />
+        <Route
+          path="/admin/settings"
+          element={isAdmin ? <Settings /> : <div>Access Denied</div>}
+        />
 
-          {/* User */}
-          <Route
-            path="/dashboard"
-            element={
-              <UserOnly authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
-                <Dashboard />
-              </UserOnly>
-            }
-          />
-          <Route
-            path="/users/profile"
-            element={
-              <UserOnly authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
-                <Settings />
-              </UserOnly>
-            }
-          />
-          <Route
-            path="/modules"
-            element={
-              <UserOnly authenticated={auth.authenticated} isAdmin={auth.isAdmin}>
-                <ModulePage />
-              </UserOnly>
-            }
-          />
+        {/* User Routes */}
+        <Route
+          path="/dashboard"
+          element={!isAdmin ? <Dashboard /> : <div>Access Denied</div>}
+        />
+        <Route
+          path="/users/profile"
+          element={!isAdmin ? <Settings /> : <div>Access Denied</div>}
+        />
 
-          {/* Shared (must be signed in) */}
-          <Route
-            path="/lessons/:lessonId/tasks/:taskId"
-            element={
-              <Protected authenticated={auth.authenticated}>
-                <TasksPage />
-              </Protected>
-            }
-          />
-          <Route
-            path="/dictionary"
-            element={
-              <Protected authenticated={auth.authenticated}>
-                <DictionaryPage />
-              </Protected>
-            }
-          />
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthContext.Provider>
+        {/* Shared Routes */}
+        <Route
+          path="/admin/lessons/:lessonId/tasks"
+          element={isAdmin ? <TaskList /> : <div>Access Denied</div>}
+        />
+        <Route path="/verify-email" element={<EmailVerified />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/modules" element={!isAdmin ? <ModulePage /> : <div>Access Denied</div>} />
+        <Route path="/lessons/:lessonId/tasks/:taskId" element={<TasksPage />} />
+        <Route path="/dictionary" element={<DictionaryPage />} />
+      </Routes>
+    </Router>
   );
 };
 
