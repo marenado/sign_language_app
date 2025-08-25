@@ -242,11 +242,14 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
             await db.commit()
 
         # Issue tokens + set HttpOnly cookies
+        # in /google/callback
         access_token  = create_access_token({"sub": email, "is_admin": user.is_admin})
-        refresh_token = create_access_token({"sub": email, "is_admin": user.is_admin}, expire_minutes=60*24*7)
+        refresh_token = create_refresh_token({"sub": email, "is_admin": user.is_admin})
+        set_auth_cookies(resp, access_token, refresh_token)
+
 
         resp = RedirectResponse(f"{FRONTEND_URL}/")  # no token in URL
-        set_auth_cookies(resp, access_token, refresh_token)
+        
         return resp
 
     except HTTPException:
