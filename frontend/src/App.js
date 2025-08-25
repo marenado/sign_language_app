@@ -23,16 +23,42 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
-// -------- Login / Welcome --------
+/* -------------------- PUBLIC WELCOME @ "/" -------------------- */
+const Welcome = () => {
+  const navigate = useNavigate();
+  return (
+    <Container>
+      <LeftSection>
+        <h1>SignLearn</h1>
+        <p>Unlock the Language of Hands</p>
+        <Description>
+          <TypedText
+            text="SignLearn is your gateway to mastering the world of sign languages. Uniquely offering one platform for multiple sign languages, we make learning seamless, interactive, and engaging. Dive into immersive lessons, sharpen your skills with hands-on practice, and experience the joy of connecting through the universal language of gestures. SignLearn is where your journey to communication begins!"
+            speed={20}
+          />
+        </Description>
+
+        <div style={{ marginTop: 24 }}>
+          <Button onClick={() => navigate("/login")}>Sign in</Button>
+          <SignUpButton style={{ marginLeft: 12 }} onClick={() => navigate("/signup")}>
+            Create a new account
+          </SignUpButton>
+        </div>
+      </LeftSection>
+      <RightSection />
+    </Container>
+  );
+};
+
+/* -------------------- LOGIN @ "/login" -------------------- */
+/* No auto-check on "/", ONLY here. */
 const Login = ({ onLoggedIn }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
-  // If session cookies already exist (e.g., after Google/Facebook redirect),
-  // auto-route the user in. Comment this effect out if you want to ALWAYS
-  // show the welcome page even when already authenticated.
+  // If cookies already exist (e.g., after social redirect), route user in.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -42,7 +68,7 @@ const Login = ({ onLoggedIn }) => {
         onLoggedIn(!!data.is_admin);
         navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
       } catch {
-        /* keep welcome form */
+        /* stay on login */
       }
     })();
     return () => { alive = false; };
@@ -57,17 +83,12 @@ const Login = ({ onLoggedIn }) => {
       onLoggedIn(!!data.is_admin);
       navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
     } catch (error) {
-      console.error("Login error:", error.response?.data?.detail || error.message);
-      setMessage("Invalid email or password. Please try again.");
+      setMessage(error.response?.data?.detail || "Invalid email or password. Please try again.");
     }
   };
 
-  const handleGoogleLogin = () => {
-    window.location.href = "https://signlearn.onrender.com/auth/google/login";
-  };
-  const handleFacebookLogin = () => {
-    window.location.href = "https://signlearn.onrender.com/auth/facebook/login";
-  };
+  const handleGoogleLogin   = () => (window.location.href = "https://signlearn.onrender.com/auth/google/login");
+  const handleFacebookLogin = () => (window.location.href = "https://signlearn.onrender.com/auth/facebook/login");
 
   return (
     <Container>
@@ -75,76 +96,53 @@ const Login = ({ onLoggedIn }) => {
         <h1>SignLearn</h1>
         <p>Unlock the Language of Hands</p>
         <Description>
-          <TypedText
-            text="SignLearn is your gateway to mastering the world of sign languages. Uniquely offering one platform for multiple sign languages, we make learning seamless, interactive, and engaging. Dive into immersive lessons, sharpen your skills with hands-on practice, and experience the joy of connecting through the universal language of gestures. SignLearn is where your journey to communication begins!"
-            speed={20}
-          />
+          <TypedText text="Practice, learn, and connect — one platform, many sign languages." speed={20} />
         </Description>
       </LeftSection>
 
       <RightSection>
         <Form onSubmit={handleLogin}>
           <h2>Sign in</h2>
-          <Input
-            type="text"
-            placeholder="Email or username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <Input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <Input type="text" placeholder="Email or username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <Button type="submit">Sign in</Button>
           {message && <Message>{message}</Message>}
 
-          <ForgotPasswordLink onClick={() => navigate("/forgot-password")}>
-            Forgot Password?
-          </ForgotPasswordLink>
+          <ForgotPasswordLink onClick={() => navigate("/forgot-password")}>Forgot Password?</ForgotPasswordLink>
 
           <Separator>Or continue with</Separator>
           <SocialButtons>
-            <SocialButton className="google" onClick={handleGoogleLogin}>
-              Sign in with Google
-            </SocialButton>
-            <SocialButton className="facebook" onClick={handleFacebookLogin}>
-              Sign in with Facebook
-            </SocialButton>
+            <SocialButton className="google" onClick={handleGoogleLogin}>Sign in with Google</SocialButton>
+            <SocialButton className="facebook" onClick={handleFacebookLogin}>Sign in with Facebook</SocialButton>
           </SocialButtons>
 
-          <SignUpButton onClick={() => navigate("/signup")}>
-            Create a new account
-          </SignUpButton>
+          <SignUpButton onClick={() => navigate("/signup")}>Create a new account</SignUpButton>
         </Form>
       </RightSection>
     </Container>
   );
 };
 
-// -------- Simple route guards --------
+/* -------------------- Route guards -------------------- */
 function Protected({ authenticated, children }) {
-  return authenticated ? children : <Navigate to="/" replace />; // go to welcome
+  return authenticated ? children : <Navigate to="/login" replace />;
 }
 function AdminOnly({ authenticated, isAdmin, children }) {
-  if (!authenticated) return <Navigate to="/" replace />;
+  if (!authenticated) return <Navigate to="/login" replace />;
   if (!isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }
 function UserOnly({ authenticated, isAdmin, children }) {
-  if (!authenticated) return <Navigate to="/" replace />;
+  if (!authenticated) return <Navigate to="/login" replace />;
   if (isAdmin) return <Navigate to="/admin/modules" replace />;
   return children;
 }
 
-// -------- App --------
+/* -------------------- App -------------------- */
 const App = () => {
   const [auth, setAuth] = useState({ ready: false, authenticated: false, isAdmin: false });
 
-  // Bootstrap from cookie-backed session
+  // Bootstrap from cookie-backed session (does NOT navigate)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -163,6 +161,7 @@ const App = () => {
   const logout = async () => {
     try { await api.post("/auth/logout"); } catch {}
     setAuth({ ready: true, authenticated: false, isAdmin: false });
+    // Sidebar should navigate("/") after calling this.
   };
 
   if (!auth.ready) return <div>Loading…</div>;
@@ -171,13 +170,19 @@ const App = () => {
     <AuthContext.Provider value={{ auth, setAuth, logout }}>
       <Router>
         <Routes>
-          {/* Welcome page lives at "/" */}
+          {/* PUBLIC welcome page — no auth calls, no redirects */}
+          <Route path="/" element={<Welcome />} />
+
+          {/* Login: if already authed, jump to role home */}
           <Route
-            path="/"
-            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
+            path="/login"
+            element={
+              auth.authenticated
+                ? <Navigate to={auth.isAdmin ? "/admin/modules" : "/dashboard"} replace />
+                : <Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />
+            }
           />
-          {/* Keep /login as an alias to the same welcome page */}
-        
+
           {/* Public auth pages */}
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailVerified />} />
@@ -254,7 +259,7 @@ const App = () => {
             }
           />
 
-          {/* Fallback */}
+          {/* Fallback — keep people on the public home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
@@ -296,7 +301,7 @@ const Input = styled.input`
   border: 1px solid #ccc; border-radius: 5px; font-size: 1rem;
 `;
 const Button = styled.button`
-  width: 100%; padding: 10px; background-color: #4a316f; color: #fff;
+  padding: 10px 16px; background-color: #4a316f; color: #fff;
   border: none; border-radius: 5px; font-size: 1rem; cursor: pointer;
   &:hover { background-color: #3a2559; }
 `;
