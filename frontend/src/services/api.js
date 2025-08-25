@@ -1,32 +1,34 @@
-// src/services/api.js
+// services/api.js
 import axios from "axios";
 
 const api = axios.create({
   baseURL: "https://signlearn.onrender.com",
-  withCredentials: true, // send/receive HttpOnly cookies
+  withCredentials: true,
 });
 
-// No request interceptor adding Authorization headers — cookies handle auth
+let triedRefreshOnce = false;
 
-// Auto-refresh on 401 (once), then retry the original request
 api.interceptors.response.use(
-  (res) => res,
+  (r) => r,
   async (error) => {
     const original = error.config;
-    if (!original || original._retry) return Promise.reject(error);
+    const status = error.response?.status;
+    const url = original?.url || "";
 
-    if (error.response && error.response.status === 401) {
-      try {
-        original._retry = true;
-        await api.post("/auth/refresh");        // uses refresh cookie
-        return api(original);                   // retry with new access cookie
-      } catch (e) {
-        try { await api.post("/auth/logout"); } catch {}
-        window.location.href = "/";             // back to login
-        return Promise.reject(e);
+    const isAuthRoute =
+      url.includes("/auth/refresh") || url.includes("/auth/login") ||
+      url.includes("/auth/google")  || url.includes("/auth/facebook");
+
+    if (status === 401 && !original._retry && !isAuthRoute) {
+      original._retry = true;
+      if (!triedRefreshOnce) {
+        triedRefreshOnce = true;
+        try {
+          await api.post("/auth/refresh");
+          return api(original); // retry once
+        } catch (_) { /* not logged in → fall through */ }
       }
     }
-
     return Promise.reject(error);
   }
 );

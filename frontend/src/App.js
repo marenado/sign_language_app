@@ -17,6 +17,11 @@ import ResetPassword from "./components/ResetPassword";
 import ModuleManagement from "./components/ModuleManagement";
 import api from "./services/api"; // axios instance with withCredentials: true
 
+
+// Detect if the backend session cookies exist
+const hasSession = () =>
+  document.cookie.includes("sl_access=") || document.cookie.includes("sl_refresh=");
+
 const Login = ({ setIsAdmin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,20 +29,25 @@ const Login = ({ setIsAdmin }) => {
   const navigate = useNavigate();
 
   // If session cookies already exist (e.g., after Google redirect), route user in
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const { data } = await api.get("/auth/me"); // backend reads access cookie
-        if (!mounted) return;
-        setIsAdmin(data.is_admin);
-        navigate(data.is_admin ? "/admin/modules" : "/dashboard");
-      } catch {
-        // not logged in yet — show the form
-      }
-    })();
-    return () => { mounted = false; };
-  }, [navigate, setIsAdmin]);
+ useEffect(() => {
+  // Only try to hydrate if we actually have session cookies (e.g., after Google login)
+  if (!hasSession()) return;
+
+  let alive = true;
+  (async () => {
+    try {
+      const { data } = await api.get("/auth/me"); // backend reads cookie
+      if (!alive) return;
+      setIsAdmin(data.is_admin);
+      navigate(data.is_admin ? "/admin/modules" : "/dashboard");
+    } catch {
+      // not logged in yet — keep the form
+    }
+  })();
+
+  return () => { alive = false; };
+}, [navigate, setIsAdmin]);
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -124,19 +134,27 @@ const App = () => {
 
   // Bootstrap auth state from cookies
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const { data } = await api.get("/auth/me");
-        if (!mounted) return;
-        setIsAdmin(data.is_admin);
-      } catch {
-        if (!mounted) return;
-        setIsAdmin(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+  // If no cookies, we’re clearly logged out; don’t spam /auth/me
+  if (!hasSession()) { 
+    setIsAdmin(false);
+    return;
+  }
+
+  let alive = true;
+  (async () => {
+    try {
+      const { data } = await api.get("/auth/me");
+      if (!alive) return;
+      setIsAdmin(data.is_admin);
+    } catch {
+      if (!alive) return;
+      setIsAdmin(false);
+    }
+  })();
+
+  return () => { alive = false; };
+}, []);
+
 
   if (isAdmin === null) {
     return <div>Loading...</div>;
