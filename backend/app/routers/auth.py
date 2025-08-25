@@ -221,10 +221,9 @@ async def google_login(request: Request):
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        # use the same redirect_uri as above
         token = await oauth.google.authorize_access_token(request)
 
-        # prefer ID token; fall back to userinfo
+        # Prefer ID token; fall back to userinfo
         try:
             userinfo = await oauth.google.parse_id_token(request, token)
         except Exception as e:
@@ -238,7 +237,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         if not email:
             raise HTTPException(status_code=400, detail="Google did not return an email")
 
-        # upsert user
+        # Upsert user
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
@@ -248,23 +247,33 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
             await db.commit()
             await db.refresh(user)
 
-        # create response FIRST...
-        resp = RedirectResponse(url=f"{FRONTEND_URL}/")  # or /modules
+        # Decide where to send them
+        # (admins → module management, users → dashboard)
+        is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
-        # ...then set cookies on it
-        access_token  = create_access_token({"sub": email, "is_admin": user.is_admin})
-        refresh_token = create_refresh_token({"sub": email, "is_admin": user.is_admin})
-        set_auth_cookies(resp, access_token, refresh_token)  # make sure this sets HttpOnly, Secure, SameSite=None
+        # Optional: honor a safe ?next=/relative/path
+        next_param = request.query_params.get("next")
+        dest = "/admin/modules" if is_admin else "/dashboard"
+        if next_param and next_param.startswith("/"):   # simple safety check (same-origin relative)
+            dest = next_param
+
+        # Build redirect, then set cookies on it
+        resp = RedirectResponse(url=f"{FRONTEND_URL}{dest}", status_code=302)
+
+        access_token  = create_access_token({"sub": email, "is_admin": is_admin})
+        refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
+        set_auth_cookies(resp, access_token, refresh_token)  # HttpOnly; Secure; SameSite=None
 
         return resp
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logging.exception("Unexpected error in Google callback")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     finally:
         await db.close()
+
 
 
 
