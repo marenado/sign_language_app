@@ -87,28 +87,38 @@ serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY", "default_secret_key"
 from fastapi import Response, Request
 from datetime import timedelta
 
-# --- keep imports the same ---
-
 ACCESS_COOKIE_NAME = "sl_access"
 REFRESH_COOKIE_NAME = "sl_refresh"
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
-    # You are using different origins → must be SameSite=None + Secure
-    cookie_kwargs = dict(httponly=True, secure=True, samesite="none")
-
-    # Access (~1 hour)
-    response.set_cookie(
-        ACCESS_COOKIE_NAME, access_token, max_age=60*60, path="/", **cookie_kwargs
+    # Cross-site cookies need SameSite=None; Secure
+    cookie_kwargs = dict(
+        httponly=True,
+        secure=True,
+        samesite="none",
+        domain=None,     # keep None; cookie is scoped to signlearn.onrender.com
     )
-    # Refresh (~7 days), scoped to refresh route
+    # access cookie for all routes
     response.set_cookie(
-        REFRESH_COOKIE_NAME, refresh_token, max_age=60*60*24*7, path="/auth/refresh", **cookie_kwargs
+        key=ACCESS_COOKIE_NAME,
+        value=access_token,
+        max_age=60*60,          # 1h
+        path="/",
+        **cookie_kwargs
     )
-
+    # refresh cookie only on refresh route
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        max_age=60*60*24*7,     # 7d
+        path="/auth/refresh",
+        **cookie_kwargs
+    )
 
 def clear_auth_cookies(response: Response):
-    response.delete_cookie(ACCESS_COOKIE_NAME, path="/")
-    response.delete_cookie(REFRESH_COOKIE_NAME, path="/auth/refresh")
+    response.delete_cookie(ACCESS_COOKIE_NAME, path="/", samesite="none")
+    response.delete_cookie(REFRESH_COOKIE_NAME, path="/auth/refresh", samesite="none")
+
 
 
 # OAuth Configuration
