@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import axios from "axios";
 import api from "../services/api"; 
 import Sidebar from "../components/Sidebar";
 import { FaCheckCircle } from "react-icons/fa";
