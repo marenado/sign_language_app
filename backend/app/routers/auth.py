@@ -51,6 +51,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256" 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 FRONTEND_URL = os.getenv("FRONTEND_URL")
+GENERIC_MSG = {"message": "If the email exists, we sent a reset link."}
 
 # Environment variable validation
 def validate_env_variables():
@@ -300,115 +301,136 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
         await db.close()
 
 
+from itsdangerous import URLSafeTimedSerializer
+import asyncio, random
+
 @router.post("/forgot-password")
 async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
     """
-    Generate and send a password reset link to the user's email.
+    Always return a generic success message.
+    If the user exists, send the email; otherwise do nothing.
     """
     try:
-        # Check if user exists with the provided email
+        
+        await asyncio.sleep(random.uniform(0.05, 0.15))
+
         result = await db.execute(select(User).where(User.email == request.email))
         user = result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(status_code=404, detail="User with this email does not exist.")
 
-        # Generate a secure token with expiration (1 hour)
-        token = serializer.dumps({"email": user.email}, salt="password-reset")
+        if user:
+            token = serializer.dumps({"email": user.email}, salt="password-reset")
+            frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+            reset_link = f"{frontend_url}/reset-password?token={token}"
 
-        # Build reset link using FRONTEND_URL from env
-        frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
-        reset_link = f"{frontend_url}/reset-password?token={token}"
-
-        # Send password reset email
-        message = MessageSchema(
-            subject="Password Reset Request",
-            recipients=[request.email],
-            body=f"""
-                <html>
-                    <body>
+            message = MessageSchema(
+                subject="Password Reset Request",
+                recipients=[request.email],
+                body=f"""
+                    <html><body>
                         <p>Hi {user.username or "User"},</p>
-                        <p>We received a request to reset your password. Click the link below to reset your password:</p>
-                        <a href="{reset_link}">Reset Password</a>
-                        <p>If you did not request a password reset, you can safely ignore this email.</p>
+                        <p>We received a request to reset your password.</p>
+                        <p><a href="{reset_link}">Reset Password</a></p>
+                        <p>If you did not request this, you can ignore this email.</p>
                         <p>This link will expire in 1 hour.</p>
-                    </body>
-                </html>
-            """,
-            subtype="html",
-        )
-        fm = FastMail(conf)
-        await fm.send_message(message)
+                    </body></html>
+                """,
+                subtype="html",
+            )
+            try:
+                await FastMail(conf).send_message(message)
+                logging.info(f"[forgot-password] sent to {request.email}")
+            except Exception as e:
+                # Don’t leak to client; just log
+                logging.exception(f"[forgot-password] mail send failed for {request.email}: {e}")
 
-        logging.info(f"Password reset link sent to {request.email}: {reset_link}")
-        return {"message": "Password reset link has been sent to your email."}
+        # Always return the same message to avoid enumeration
+        return GENERIC_MSG
 
-    except HTTPException:
-        # preserve 4xx like user-not-found
-        raise
     except Exception as e:
-        # show full traceback in logs so you can see SMTP error class/message in Render
-        logging.exception(f"[forgot-password] mail send failed for {request.email}: {e}")
-        raise HTTPException(status_code=500, detail="Email sending failed. Check server logs.")
+        logging.exception(f"[forgot-password] unexpected error for {request.email}: {e}")
+        # Still return generic message to the client
+        return GENERIC_MSG
     finally:
         await db.close()
 
 
 
-
-
-
 from fastapi import HTTPException
+from itsdangerous import SignatureExpired, BadSignature
 
 
 @router.get("/verify-email", response_class=HTMLResponse)
 async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     """
     Verify the user's email using the provided token.
+    Always show a friendly HTML page; avoid leaking internals.
     """
     try:
-        # Decode the token to get the email
         email = serializer.loads(token, salt="email-verification", max_age=3600)
 
-        # Check if the user exists in the database
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
 
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
-
-        # Get the frontend URL from the environment variables
         frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
 
-        # If the user is already verified, return an appropriate response
-        if user.is_verified:
+        if not user:
+            # Token is valid but the account is gone (or data mismatch)
             return HTMLResponse(f"""
-                <html>
-                    <body>
-                        <h1>Email Already Verified</h1>
-                        <p>Your email has already been verified. <a href="{frontend_url}/">Login here</a>.</p>
-                    </body>
-                </html>
+                <html><body>
+                    <h1>Link invalid or already used</h1>
+                    <p>Please try signing up again.</p>
+                    <p><a href="{frontend_url}/">Go to Sign In</a></p>
+                </body></html>
             """)
 
-        # Mark the user as verified
+        if user.is_verified:
+            return HTMLResponse(f"""
+                <html><body>
+                    <h1>Email already verified</h1>
+                    <p>You can sign in now.</p>
+                    <p><a href="{frontend_url}/">Go to Sign In</a></p>
+                </body></html>
+            """)
+
         user.is_verified = True
         await db.commit()
 
-        # Return an HTML confirmation page with the correct frontend URL
         return HTMLResponse(f"""
-            <html>
-                <body>
-                    <h1>Email Verified Successfully</h1>
-                    <p>Your email has been verified. <a href="{frontend_url}/">Click here to login</a>.</p>
-                </body>
-            </html>
+            <html><body>
+                <h1>Email verified successfully</h1>
+                <p>Your email has been verified. You can sign in now.</p>
+                <p><a href="{frontend_url}/">Go to Sign In</a></p>
+            </body></html>
         """)
 
     except SignatureExpired:
-        raise HTTPException(status_code=400, detail="The verification link has expired.")
+        frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+        return HTMLResponse(f"""
+            <html><body>
+                <h1>Link expired</h1>
+                <p>The verification link has expired. Please request a new one.</p>
+                <p><a href="{frontend_url}/">Go to Sign In</a></p>
+            </body></html>
+        """)
+    except BadSignature:
+        frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+        return HTMLResponse(f"""
+            <html><body>
+                <h1>Invalid link</h1>
+                <p>This verification link is not valid. Please request a new one.</p>
+                <p><a href="{frontend_url}/">Go to Sign In</a></p>
+            </body></html>
+        """)
     except Exception as e:
-        logging.error(f"Error during email verification: {str(e)}")
-        raise HTTPException(status_code=500, detail="An error occurred during email verification.")
+        logging.exception(f"[verify-email] error: {e}")
+        frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+        return HTMLResponse(f"""
+            <html><body>
+                <h1>Something went wrong</h1>
+                <p>Please try again later.</p>
+                <p><a href="{frontend_url}/">Go to Sign In</a></p>
+            </body></html>
+        """)
     finally:
         await db.close()
 
