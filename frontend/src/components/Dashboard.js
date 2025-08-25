@@ -16,6 +16,7 @@ import {
 } from "chart.js";
 import { Avatar, Box, Button, Card, CardContent, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom"; // Import navigation hook
+import { AuthContext } from "../App";
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
