@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import axios from "axios";
 import { EmojiEvents, TrendingUp } from "@mui/icons-material"; // Import icons
 import Sidebar from "./Sidebar"; // Import Sidebar
@@ -34,30 +34,32 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate(); // Initialize navigation
 
+  const { auth, logout } = useContext(AuthContext); 
 
   useEffect(() => {
-    const fetchData = async () => {
+    let alive = true;
+    (async () => {
       try {
-        const dashboardResponse = await api.get("/users/dashboard");
-        const topUsersResponse = await api.get("/users/top-users");
-
+        const [dashboardResponse, topUsersResponse] = await Promise.all([
+          api.get("/users/dashboard"),
+          api.get("/users/top-users"),
+        ]);
+        if (!alive) return;
         setDashboardData(dashboardResponse.data);
         setTopUsers(topUsersResponse.data);
       } catch (err) {
-        // console.error("Error fetching data:", err);
         if (err.response?.status === 401) {
-          setError("Access token expired. Please log in again.");
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("refreshToken");
-          window.location.href = "/";
-        } else {
-          setError(err.response?.data?.detail || "Failed to load dashboard data.");
+          // session expired — clear state and go to login
+          logout();
+          navigate("/", { replace: true });
+          return;
         }
+        // optionally show an error toast here
+        // console.error(err);
       }
-    };
-
-    fetchData();
-  }, []);
+    })();
+    return () => { alive = false; };
+  }, [logout, navigate]);
 
 
 
@@ -147,7 +149,7 @@ const Dashboard = () => {
         overflow: "hidden",
       }}
     >
-      <Sidebar /> 
+      <Sidebar isAdmin={auth.isAdmin} onLogout={logout} />
       <Box
         sx={{
           flex: 1,
@@ -248,7 +250,7 @@ const Dashboard = () => {
                     color: "#fff",
                     "&:hover": { backgroundColor: "#4a148c" },
                   }}
-                  onClick={() => navigate("/settings")}
+                  onClick={() => navigate("/admin/settings")}
                 >
                   Go to Settings
                 </Button>
