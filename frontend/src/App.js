@@ -181,10 +181,10 @@ const App = () => {
    element={<Login autoCheck={false} onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
  />
           {/* Keep /login as an alias to the same welcome page */}
-           <Route
+           {/* <Route
   path="/login"
    element={<Login autoCheck onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
- />
+ /> */}
           {/* Public auth pages */}
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailVerified />} />
