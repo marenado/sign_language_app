@@ -244,32 +244,47 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/login")
 async def login(request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     try:
+        # find user
         result = await db.execute(select(User).where(User.email == request.email))
         user = result.scalar_one_or_none()
 
-        if not user or not verify_password(request.password, user.password):
+        if not user:
+            # generic message to avoid user enumeration
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        access_token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
-        refresh_token = create_access_token({"sub": user.email, "is_admin": user.is_admin}, expire_minutes=60*24*7)
+        # if the account was created via Google/Facebook, there is no local password hash
+        if not user.password:
+            raise HTTPException(
+                status_code=400,
+                detail="This account was created with Google. Please sign in with Google or reset your password."
+            )
 
-        # Set HttpOnly cookies
+        # verify password (guard so weird hash errors don’t 500)
+        try:
+            if not verify_password(request.password, user.password):
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+        except Exception as e:
+            logging.warning(f"Password verify error for {request.email}: {e}")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        # create tokens
+        access_token = create_access_token({"sub": user.email, "is_admin": user.is_admin})
+        refresh_token = create_access_token(
+            {"sub": user.email, "is_admin": user.is_admin}, expire_minutes=60 * 24 * 7  # 7 days
+        )
+
+        # set HttpOnly cookies
         set_auth_cookies(response, access_token, refresh_token)
 
-        # TEMP: keep tokens in body if your frontend still expects them.
-        # You can switch to {"message": "ok"} after updating the frontend to use cookies.
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-        }
-
+        # minimal JSON body (frontend doesn’t need tokens anymore)
+        return {"ok": True}
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error(f"Error during login: {str(e)}")
+        logging.exception(f"Error during login for {request.email}: {e}")
         raise HTTPException(status_code=500, detail="An error occurred during login.")
     finally:
         await db.close()
-
 
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
@@ -611,40 +626,47 @@ async def logout(response: Response):
     clear_auth_cookies(response)
     return {"message": "logged out"}
 
+from fastapi import Cookie
 
 @router.get("/me")
-async def me(request: Request, db: AsyncSession = Depends(get_db)):
+async def me(sl_access: str = Cookie(None), db: AsyncSession = Depends(get_db)):
+    if not sl_access:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        token = request.cookies.get(ACCESS_COOKIE_NAME)
-        if not token:
-            raise HTTPException(status_code=401, detail="Not authenticated")
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(sl_access, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
         if not email:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            raise HTTPException(status_code=401, detail="Not authenticated")
 
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=401, detail="Not authenticated")
 
-        return {"email": user.email, "username": user.username, "is_admin": user.is_admin}
+        return {
+            "email": user.email,
+            "username": user.username,
+            "is_admin": user.is_admin,
+        }
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     finally:
         await db.close()
 
 
 @router.post("/refresh")
 async def refresh_access_token_endpoint(
-    response: Response,
-    request: Request,
+    req: TokenRefreshRequest | None = None,
+    response: Response = None,
+    sl_refresh: str = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        refresh = request.cookies.get(REFRESH_COOKIE_NAME)
-        if not refresh:
-            raise HTTPException(status_code=401, detail="No refresh cookie")
+        token = (req.refresh_token if req else None) or sl_refresh
+        if not token:
+            raise HTTPException(status_code=401, detail="No refresh token.")
 
-        payload = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if not email:
             raise HTTPException(status_code=401, detail="Invalid refresh token.")
@@ -655,12 +677,10 @@ async def refresh_access_token_endpoint(
             raise HTTPException(status_code=404, detail="User not found.")
 
         new_access = create_access_token({"sub": email, "is_admin": user.is_admin})
-        # Set a fresh access cookie (1h)
-        response.set_cookie(
-            ACCESS_COOKIE_NAME, new_access, max_age=60*60, path="/",
-            httponly=True, secure=True, samesite="lax"
-        )
-        return {"message": "refreshed"}
+        # set new access cookie to keep session rolling
+        if response:
+            set_auth_cookies(response, new_access, token)
+        return {"access_token": new_access}
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token has expired.")
     except JWTError:
