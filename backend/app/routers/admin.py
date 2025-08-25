@@ -1,33 +1,32 @@
+# routers/admin.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql import text
-from app.utils.auth import require_admin, get_current_user
+from sqlalchemy.future import delete
+from sqlalchemy.orm import selectinload, joinedload
+from typing import Optional, List
+import logging
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.database import get_db
-from sqlalchemy.orm import selectinload
 from app.models.user import User
-from app.utils.auth import (
-    require_admin,              # now cookie-based
-    get_current_user_cookie,    # use this where you just need the current user
-    hash_password,
-)
 from app.models.module import Module
 from app.models.language import Language
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
-from sqlalchemy import delete
+from app.models.lesson import Lesson
 from app.models.task import Task
 from app.models.task_video import TaskVideo
 from app.models.video_reference import VideoReference
-from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+
+from app.schemas.user import UserResponse, UserUpdate
 from app.schemas.module import ModuleCreate, ModuleResponse
 from app.schemas.language import LanguageCreate, LanguageResponse
-from app.schemas.video_reference import VideoReferenceResponse
-from typing import Optional, List
 from app.schemas.lesson import LessonCreate, LessonResponse
-from app.models.lesson import Lesson
-import logging
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+from app.schemas.video_reference import VideoReferenceResponse
+
+from app.utils.auth import require_admin, get_current_user_cookie, hash_password
+
 
 router = APIRouter(
     prefix="/admin",

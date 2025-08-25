@@ -1,49 +1,62 @@
-from passlib.context import CryptContext
 from datetime import datetime, timedelta
+import logging, os, re
+from fastapi import Depends, HTTPException, Cookie
 from jose import jwt, JWTError, ExpiredSignatureError
-from fastapi import Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordBearer
+from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.models.user import User
+
 from app.database import get_db
-import os
-import logging
-import re
-from fastapi import Cookie
+from app.models.user import User
 
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load sensitive data from environment variables
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
+# Fail fast if SECRET_KEY is missing in prod
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    # during local dev you can set a default, but prod should set env
+    SECRET_KEY = "dev-secret-key"  # <-- replace/remove in prod
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
-# Password hashing configuration
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Dependency for OAuth2 token extraction
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+# ---------- password helpers ----------
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
-# --- Cookie-based auth helpers ---
+# ---------- JWT helpers ----------
+def create_access_token(data: dict, expire_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
+    to_encode.update({"exp": expire})
+    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    # logger.debug(f"Token payload created for {to_encode.get('sub')}, exp={expire.isoformat()}")  # safer logging
+    return token
 
+def create_refresh_token(data: dict, expire_minutes: int = 60 * 24 * 7) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# ---------- cookie-based current user ----------
 async def get_current_user_cookie(
     sl_access: str = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Resolve the current user from the HttpOnly 'sl_access' cookie.
+    Trust DB for roles, not the token.
     """
     if not sl_access:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = jwt.decode(sl_access, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
-        is_admin = payload.get("is_admin", False)
         if not email:
             raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -52,158 +65,60 @@ async def get_current_user_cookie(
         if not user:
             raise HTTPException(status_code=401, detail="Not authenticated")
 
-        # keep role from token for quick checks
-        user.is_admin = is_admin
+        # Ensure .is_admin/.is_super_admin are bools
+        user.is_admin = bool(user.is_admin)
+        user.is_super_admin = bool(getattr(user, "is_super_admin", False))
         return user
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired")
     except JWTError:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-
-async def require_admin_cookie(current_user: User = Depends(get_current_user_cookie)):
-    if not current_user.is_admin:
+async def require_admin(current_user: User = Depends(get_current_user_cookie)) -> User:
+    if not getattr(current_user, "is_admin", False):
+        logger.warning(f"Unauthorized admin access attempt by: {getattr(current_user, 'email', 'unknown')}")
         raise HTTPException(status_code=403, detail="Admin privileges required.")
     return current_user
 
-# Hash a password
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+async def require_super_admin(current_user: User = Depends(get_current_user_cookie)) -> User:
+    if not getattr(current_user, "is_super_admin", False):
+        raise HTTPException(status_code=403, detail="Super admin privileges required.")
+    return current_user
 
-# Verify a plain password against a hashed password
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def create_access_token(data: dict, expire_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
-    """
-    Create a JWT token with the specified expiration time.
-    """
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
-    to_encode.update({"exp": expire})
-    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    logger.info(f"Token created with payload: {to_encode}")
-    return token
-
-
-def create_refresh_token(data: dict, expire_minutes: int = 10080) -> str:  # Default: 7 days
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
-    to_encode.update({"exp": expire})
+# ---------- email verification ----------
+def create_email_verification_token(email: str) -> str:
+    expire = datetime.utcnow() + timedelta(hours=24)
+    to_encode = {"sub": email, "exp": expire}
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-
-from fastapi.responses import JSONResponse
-
-def refresh_access_token(token: str) -> str:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        exp = payload.get("exp")
-        if not exp or exp - datetime.utcnow().timestamp() < 5 * 60:
-            payload.pop("exp", None)  # Remove old expiration
-            return create_access_token({"sub": payload["sub"], "is_admin": payload.get("is_admin", False)})
-        return token
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired. Please log in again.")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token.")
-
-
-
-def validate_token(token: str) -> dict:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Access token expired.")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token.")
-
-async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> User:
-    payload = validate_token(token)
-    email: str = payload.get("sub")
-    is_admin: bool = payload.get("is_admin", False)
-
-    if not email:
-        raise HTTPException(status_code=401, detail="Invalid token payload.")
-    
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
-
-    user.is_admin = is_admin
-    return user
-
-
-
-
-# Require admin privileges
-async def require_admin(current_user: User = Depends(get_current_user_cookie)):
-    if not current_user.is_admin:
-        logger.warning(f"Unauthorized admin access attempt by user: {getattr(current_user, 'email', 'unknown')}")
-        raise HTTPException(status_code=403, detail="Admin privileges required.")
-    logger.info(f"Admin access granted for user: {current_user.email}")
-    return current_user
-
-# Require super admin privileges
-async def require_super_admin(current_user: User = Depends(get_current_user)):
-    """
-    Ensures the current user has super-admin privileges.
-    """
-    if not current_user.is_super_admin:
-        logger.warning(f"Unauthorized super admin access attempt by user: {current_user.email}")
-        raise HTTPException(status_code=403, detail="Super admin privileges required.")
-    logger.info(f"Super admin access granted for user: {current_user.email}")
-    return current_user
-
-# Generate an email verification token
-def create_email_verification_token(email: str) -> str:
-    """
-    Generates a JWT token for email verification.
-    """
-    expire = datetime.utcnow() + timedelta(hours=24)  # Token valid for 24 hours
-    to_encode = {"sub": email, "exp": expire}
-    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    logger.info(f"Email verification token created for email: {email}")
-    return token
-
-# Verify the email verification token
 def verify_email_verification_token(token: str) -> str:
-    """
-    Decodes and verifies the email verification token.
-    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        if email is None:
-            logger.warning("Invalid email verification token payload.")
+        if not email:
             raise HTTPException(status_code=400, detail="Invalid token.")
-        logger.info(f"Email verification successful for email: {email}")
         return email
     except ExpiredSignatureError:
-        logger.warning("Email verification token has expired.")
         raise HTTPException(status_code=400, detail="Verification token has expired.")
     except JWTError:
-        logger.error("Invalid or expired email verification token.")
         raise HTTPException(status_code=400, detail="Invalid or expired token.")
 
-
-
+# ---------- password policy ----------
 def validate_password(password: str):
-    """
-    Validate the password strength.
-    """
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
-    if not re.search(r'[A-Z]', password):
+    if not re.search(r"[A-Z]", password):
         raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter.")
-    if not re.search(r'[a-z]', password):
+    if not re.search(r"[a-z]", password):
         raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter.")
-    if not re.search(r'\d', password):
+    if not re.search(r"\d", password):
         raise HTTPException(status_code=400, detail="Password must contain at least one digit.")
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
         raise HTTPException(status_code=400, detail="Password must contain at least one special character.")
-    if re.search(r'\s', password):
+    if re.search(r"\s", password):
         raise HTTPException(status_code=400, detail="Password must not contain spaces.")
     return True
+
+# ---------- back-compat aliases ----------
+# So routers that still import these names keep working
+get_current_user = get_current_user_cookie  # old name → cookie version
