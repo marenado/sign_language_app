@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, createContext } from "react";
+import React, { useState, useEffect, createContext } from "react";
 import styled from "styled-components";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import TypedText from "./components/TypedText";
@@ -16,21 +16,23 @@ import ResetPassword from "./components/ResetPassword";
 import ModuleManagement from "./components/ModuleManagement";
 import api from "./services/api"; // axios with { withCredentials: true }
 
-//
-// -------- Auth context (use in Sidebar for logout) --------
-//
-export const AuthContext = createContext({ auth: { ready:false, authenticated:false, isAdmin:false }, logout: () => {} });
+// -------- Auth context (used by Sidebar/Dashboard) --------
+export const AuthContext = createContext({
+  auth: { ready: false, authenticated: false, isAdmin: false },
+  setAuth: () => {},
+  logout: () => {},
+});
 
-//
-// -------- Login screen --------
-//
+// -------- Login / Welcome --------
 const Login = ({ onLoggedIn }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
-  // If session cookies already exist (e.g. after Google redirect), route user in
+  // If session cookies already exist (e.g., after Google/Facebook redirect),
+  // auto-route the user in. Comment this effect out if you want to ALWAYS
+  // show the welcome page even when already authenticated.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -39,7 +41,9 @@ const Login = ({ onLoggedIn }) => {
         if (!alive) return;
         onLoggedIn(!!data.is_admin);
         navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
-      } catch { /* keep form */ }
+      } catch {
+        /* keep welcome form */
+      }
     })();
     return () => { alive = false; };
   }, [navigate, onLoggedIn]);
@@ -48,7 +52,7 @@ const Login = ({ onLoggedIn }) => {
     e.preventDefault();
     setMessage("");
     try {
-      await api.post("/auth/login", { email, password }); // sets cookies
+      await api.post("/auth/login", { email, password }); // sets HttpOnly cookies
       const { data } = await api.get("/auth/me");
       onLoggedIn(!!data.is_admin);
       navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
@@ -121,26 +125,22 @@ const Login = ({ onLoggedIn }) => {
   );
 };
 
-//
 // -------- Simple route guards --------
-//
 function Protected({ authenticated, children }) {
-  return authenticated ? children : <Navigate to="/login" replace />;
+  return authenticated ? children : <Navigate to="/" replace />; // go to welcome
 }
 function AdminOnly({ authenticated, isAdmin, children }) {
-  if (!authenticated) return <Navigate to="/login" replace />;
+  if (!authenticated) return <Navigate to="/" replace />;
   if (!isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }
 function UserOnly({ authenticated, isAdmin, children }) {
-  if (!authenticated) return <Navigate to="/login" replace />;
+  if (!authenticated) return <Navigate to="/" replace />;
   if (isAdmin) return <Navigate to="/admin/modules" replace />;
   return children;
 }
 
-//
 // -------- App --------
-//
 const App = () => {
   const [auth, setAuth] = useState({ ready: false, authenticated: false, isAdmin: false });
 
@@ -171,25 +171,18 @@ const App = () => {
     <AuthContext.Provider value={{ auth, setAuth, logout }}>
       <Router>
         <Routes>
-          {/* Root → send to login so / and /login both work */}
+          {/* Welcome page lives at "/" */}
           <Route
             path="/"
-            element={
-              auth.authenticated
-                ? <Navigate to={auth.isAdmin ? "/admin/modules" : "/dashboard"} replace />
-                : <Navigate to="/login" replace />
-            }
+            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
           />
-
-          {/* Login & public auth pages */}
+          {/* Keep /login as an alias to the same welcome page */}
           <Route
             path="/login"
-            element={
-              auth.authenticated
-                ? <Navigate to={auth.isAdmin ? "/admin/modules" : "/dashboard"} replace />
-                : <Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />
-            }
+            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
           />
+
+          {/* Public auth pages */}
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailVerified />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -247,7 +240,7 @@ const App = () => {
             }
           />
 
-          {/* Shared (must be signed in, any role) */}
+          {/* Shared (must be signed in) */}
           <Route
             path="/lessons/:lessonId/tasks/:taskId"
             element={
@@ -266,7 +259,7 @@ const App = () => {
           />
 
           {/* Fallback */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </AuthContext.Provider>
@@ -275,9 +268,7 @@ const App = () => {
 
 export default App;
 
-//
-// ------- styles (unchanged) -------
-//
+/* ------- styles (unchanged) ------- */
 const Container = styled.div`
   display: flex;
   height: 100vh;
