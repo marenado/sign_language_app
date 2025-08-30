@@ -106,39 +106,53 @@ async def get_modules(
         raise HTTPException(status_code=500, detail="Failed to fetch modules")
 
 
+from fastapi import Response, status
+from sqlalchemy import select, delete, update
+
 @router.delete("/modules/{module_id}", status_code=204)
 async def delete_module(
     module_id: int,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    """
-    Delete a module by ID
-    """
+    # 1) Load module and authz
+    result = await db.execute(select(Module).where(Module.module_id == module_id))
+    module = result.scalar_one_or_none()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found.")
+    if module.created_by != current_admin.user_id:
+        raise HTTPException(status_code=403, detail="You are not authorized to delete this module.")
+
     try:
-        result = await db.execute(select(Module).where(Module.module_id == module_id))
-        module = result.scalar()
+        # 2) Subqueries for children
+        lesson_ids_sq = select(Lesson.lesson_id).where(Lesson.module_id == module_id)
+        task_ids_sq   = select(Task.task_id).where(Task.lesson_id.in_(lesson_ids_sq))
 
-        if not module:
-            raise HTTPException(status_code=404, detail="Module not found.")
+        # 3) Delete link tables first
+        await db.execute(delete(TaskVideo).where(TaskVideo.task_id.in_(task_ids_sq)))
 
-        if module.created_by != current_admin.user_id:
-            raise HTTPException(status_code=403, detail="You are not authorized to delete this module.")
+        # 4) Delete tasks, then lessons
+        await db.execute(delete(Task).where(Task.task_id.in_(task_ids_sq)))
+        await db.execute(delete(Lesson).where(Lesson.lesson_id.in_(lesson_ids_sq)))
 
-        # Delete related lessons
+        # 5) Clear prerequisite references in other modules
         await db.execute(
-            text("DELETE FROM lesson WHERE module_id = :module_id").bindparams(module_id=module_id)
+            update(Module)
+            .where(Module.prerequisite_mod == module_id)
+            .values(prerequisite_mod=None)
         )
 
-        # Delete the module
-        await db.delete(module)
+        # 6) Delete the module itself
+        await db.execute(delete(Module).where(Module.module_id == module_id))
         await db.commit()
 
-        logging.info(f"Module {module_id} deleted successfully.")
-        return {"message": "Module deleted successfully."}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
-        logging.error(f"Error deleting module: {e}")
+        await db.rollback()
+        logging.error(f"Error deleting module {module_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to delete module")
+
+
 
 
 @router.put("/modules/{module_id}", response_model=ModuleResponse)
@@ -353,22 +367,29 @@ async def delete_lesson(
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    """
-    Delete a lesson by ID.
-    """
+    # Ensure the lesson exists (and optionally check ownership via its module)
     result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
-    lesson = result.scalar()
+    lesson = result.scalar_one_or_none()
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found.")
 
     try:
-        await db.delete(lesson)
+        # Gather this lesson's task ids
+        task_ids_sq = select(Task.task_id).where(Task.lesson_id == lesson_id)
+
+        # Delete link rows then tasks
+        await db.execute(delete(TaskVideo).where(TaskVideo.task_id.in_(task_ids_sq)))
+        await db.execute(delete(Task).where(Task.lesson_id == lesson_id))
+
+        # Delete the lesson
+        await db.execute(delete(Lesson).where(Lesson.lesson_id == lesson_id))
         await db.commit()
-        return {"message": "Lesson deleted successfully."}
-    except Exception as e:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception:
         await db.rollback()
-        logging.error(f"Error deleting lesson: {e}")
+        logging.exception("Error deleting lesson")
         raise HTTPException(status_code=500, detail="Failed to delete lesson")
+
 
     
 @router.post("/tasks", response_model=TaskResponse)
@@ -556,22 +577,23 @@ async def delete_task(
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    """
-    Delete a task by ID
-    """
-    try:
-        result = await db.execute(select(Task).where(Task.task_id == task_id))
-        task = result.scalar()
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found.")
+    # Ensure it exists
+    result = await db.execute(select(Task).where(Task.task_id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found.")
 
-        await db.delete(task)
+    try:
+        # Remove link rows then the task
+        await db.execute(delete(TaskVideo).where(TaskVideo.task_id == task_id))
+        await db.execute(delete(Task).where(Task.task_id == task_id))
         await db.commit()
-        logging.info(f"Task {task_id} deleted successfully.")
-        return {"message": "Task deleted successfully."}
-    except Exception as e:
-        logging.error(f"Error deleting task: {e}")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception:
+        await db.rollback()
+        logging.exception("Error deleting task")
         raise HTTPException(status_code=500, detail="Failed to delete task")
+
     
 
 
@@ -600,22 +622,20 @@ async def get_tasks_by_video(
 
 @router.get("/videos", response_model=List[VideoReferenceResponse])
 async def search_videos(
-    query: str,
+    query: Optional[str] = None,
+    search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    """
-    Search videos in the VideoReference table based on the gloss (word).
-    """
-    try:
-        result = await db.execute(
-            select(VideoReference).where(VideoReference.gloss.ilike(f"%{query}%"))
-        )
-        videos = result.scalars().all()
-        return videos
-    except Exception as e:
-        logging.error(f"Error searching videos: {e}")
-        raise HTTPException(status_code=500, detail="Failed to search videos")
+    term = (query or search or "").strip()
+    if not term:
+        return []  # or raise 400 if you prefer
+
+    result = await db.execute(
+        select(VideoReference).where(VideoReference.gloss.ilike(f"%{term}%"))
+    )
+    return result.scalars().all()
+
 
 
 
