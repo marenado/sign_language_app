@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import api from "../services/api";
 import Sidebar from "./Sidebar";
 import { Edit, Delete } from "@mui/icons-material";
-
+import api from "../services/api";
 import {
   Box,
   Card,
@@ -15,7 +14,6 @@ import {
   MenuItem,
 } from "@mui/material";
 
-const BASE_URL = "https://signlearn.onrender.com";
 
 
 const TaskList = () => {
@@ -42,9 +40,20 @@ const [selectedVideo, setSelectedVideo] = useState(null); // For the currently s
 const [newPair, setNewPair] = useState({}); // For temporarily storing a new pair (word and video)
 
 
+const loadTasks = useCallback(async () => {
+  try {
+    const { data } = await api.get("/admin/tasks", {
+      params: { lesson_id: Number(lessonId) },
+    });
+    setTasks(data);
+  } catch (error) {
+    console.error("Error fetching tasks:", error.response?.data || error.message);
+  }
+}, [lessonId]);
 const saveTask = async () => {
   const sanitizedPoints =
     taskData.task_type === "sign_presentation" ? 0 : Math.max(0, Number(taskData.points || 0));
+
 
   // If some task types store a string, wrap it so the API (expects Dict) doesn't drop it
   const correctedAnswer =
@@ -68,32 +77,14 @@ const saveTask = async () => {
     } else {
       await api.post(`/admin/tasks`, payload);
     }
-    await fetchTasks();   // reuse your helper
+    await loadTasks();   // reuse your helper
     closeModal();
   } catch (error) {
     console.error("Error saving task:", error.response?.data || error.message);
   }
 };
 
-  
 
-
-  const fetchTasks = useCallback(async () => {
-  try {
-    const { data } = await api.get("/admin/tasks", {
-      params: { lesson_id: Number(lessonId) },
-    });
-    setTasks(data);
-  } catch (error) {
-    console.error("Error fetching tasks:", error.response?.data || error.message);
-  }
-}, [lessonId]);
-
-// call it on mount / lesson change
-useEffect(() => {
-  fetchTasks();
-}, [fetchTasks]);
-  
   
 
 
@@ -120,27 +111,9 @@ useEffect(() => {
 
 
   useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const res = await api.get("/admin/tasks", { params: { lesson_id: Number(lessonId) } });
-        setTasks(res.data);
-      } catch (error) {
-        console.error("Error fetching tasks:", error.response?.data || error.message);
-      }
-    };
+  loadTasks();
+}, [loadTasks]);
 
-    fetchTasks();
-  }, [lessonId]);
-
-
-//   useEffect(() => {
-//   console.log("Video search results:", videoSearchResults);
-// }, [videoSearchResults]);
-
-// useEffect(() => {
-//     console.log("Tasks:", tasks);
-//   }, [tasks]);
-  
 
 
   const openModal = () => {
@@ -168,6 +141,20 @@ useEffect(() => {
     });
     setIsModalOpen(true); // Open the modal for editing
   };
+
+  // fetch tasks for this lesson (re-usable)
+
+
+// delete a task, then refresh list
+const deleteTask = useCallback(async (taskId) => {
+  try {
+    await api.delete(`/admin/tasks/${taskId}`);
+    await loadTasks();
+  } catch (error) {
+    console.error("Error deleting task:", error.response?.data || error.message);
+  }
+}, [loadTasks]);
+
   
   const handleTaskTypeChange = (type) => {
     setTaskData((prev) => ({
@@ -179,21 +166,7 @@ useEffect(() => {
     }));
   };
 
-  
-//   const handleTaskTypeChange = (type) => {
-//     setTaskData((prev) => ({
-//       ...prev,
-//       task_type: type,
-//       content: {},
-//       correct_answer: type === "video_to_sign" ? "" : {}, // Ensure correct_answer is set for video_to_sign
-//     }));
-//   };
-  
-
-
-
-
-
+ 
   const renderTaskInputs = () => {
     switch (taskData.task_type) {
         case "video_recognition":
