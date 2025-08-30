@@ -155,50 +155,39 @@ const closeEditLessonModal = () => {
   
 
   const handleDeleteLesson = async () => {
-    if (!activeLessonId) {
-      // console.error("No active lesson ID set for deletion.");
-      return;
+  if (!activeLessonId) return;
+
+  // Find the module that contains this lesson (fallback if selectedModule is null)
+  const currentModuleId =
+    selectedModule?.module_id ??
+    Object.keys(lessons).find((mid) =>
+      (lessons[mid] || []).some((l) => l.lesson_id === activeLessonId)
+    );
+
+  // Optional: little fade-out you already do
+  const el = document.getElementById(`lesson-${activeLessonId}`);
+  if (el) el.classList.add("removing");
+
+  setTimeout(async () => {
+    try {
+      await api.delete(`/admin/lessons/${activeLessonId}`);
+
+      setLessons((prev) => {
+        if (!currentModuleId) return prev;
+        const list = prev[currentModuleId] || [];
+        return {
+          ...prev,
+          [currentModuleId]: list.filter((l) => l.lesson_id !== activeLessonId),
+        };
+      });
+
+      closeMenu();
+    } catch (error) {
+      console.error(`Error deleting lesson ${activeLessonId}:`, error.response?.data || error.message);
     }
-  
-    // console.log(`Attempting to delete lesson with ID: ${activeLessonId}`); // Debug log
-  
-    // Add the "removing" class to trigger the fade-out animation
-    const lessonElement = document.getElementById(`lesson-${activeLessonId}`);
-    if (lessonElement) {
-      lessonElement.classList.add("removing"); // Add the removing class
-    }
-  
-    // Wait for the animation to complete (300ms in this case)
-    setTimeout(async () => {
-      try {
-        // Send the delete request
-        await api.delete(`/admin/lessons/${activeLessonId}`);
-        console.log(`Lesson ${activeLessonId} deleted successfully.`);
-  
-        // Update the local state to remove the deleted lesson
-        setLessons((prevLessons) => {
-          if (!selectedModule || !prevLessons[selectedModule.module_id]) return prevLessons;
-  
-          const updatedModuleLessons = prevLessons[selectedModule.module_id].filter(
-            (lesson) => lesson.lesson_id !== activeLessonId
-          );
-  
-          return {
-            ...prevLessons,
-            [selectedModule.module_id]: updatedModuleLessons,
-          };
-        });
-  
-        closeMenu(); // Close any related menus after deletion
-      } catch (error) {
-        console.error(
-          `Error deleting lesson ${activeLessonId}:`,
-          error.response?.data || error.message
-        );
-      }
-    }, 300); // Match the animation duration
-  };
-  
+  }, 300);
+};
+
   
   
 
@@ -985,52 +974,52 @@ const createTask = async () => {
         </Typography>
 
         {/* Menu Button */}
-        <IconButton
-          aria-label="settings"
-          onClick={(event) => {
-            event.stopPropagation(); // Prevents the Card's onClick from being triggered
-            openMenu(event, lesson.lesson_id); // Opens the menu
-          }}
-          sx={{
-            color: "#4a148c",
-            "&:hover": { color: "#5b21b6" },
-          }}
-        >
-          <MoreVertIcon />
-        </IconButton>
+       <IconButton
+  aria-label="settings"
+  onClick={(event) => {
+    event.stopPropagation();              // ✅ block Card onClick
+    openMenu(event, lesson.lesson_id);
+  }}
+  sx={{ color: "#4a148c", "&:hover": { color: "#5b21b6" } }}
+>
+  <MoreVertIcon />
+</IconButton>
 
-        {/* Menu */}
-        <Menu
-          anchorEl={menuAnchor}
-          open={Boolean(menuAnchor) && activeLessonId === lesson.lesson_id}
-          onClose={closeMenu}
-          sx={{
-            "& .MuiPaper-root": {
-              backgroundColor: "#ffffff",
-              borderRadius: "10px",
-              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-            },
-          }}
-        >
-          <MenuItem
-            onClick={() => {
-              menuShouldClose.current = false; // Prevent menu from closing
-              // console.log("Edit Lesson clicked for ID:", lesson.lesson_id);
-              openEditLessonModal(lesson);
-            }}
-          >
-            Edit Lesson
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              setActiveLessonId(lesson.lesson_id); // Set the correct lesson ID
-              handleDeleteLesson(); // Trigger delete function
-              closeMenu();
-            }}
-          >
-            Delete Lesson
-          </MenuItem>
-        </Menu>
+<Menu
+  anchorEl={menuAnchor}
+  open={Boolean(menuAnchor) && activeLessonId === lesson.lesson_id}
+  onClose={(e) => { e.stopPropagation(); closeMenu(); }}  
+  MenuListProps={{ onClick: (e) => e.stopPropagation() }}  
+  sx={{
+    "& .MuiPaper-root": {
+      backgroundColor: "#ffffff",
+      borderRadius: "10px",
+      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+    },
+  }}
+>
+  <MenuItem
+    onClick={(e) => {
+      e.stopPropagation();                // ✅ block bubbling
+      openEditLessonModal(lesson);
+      closeMenu();
+    }}
+  >
+    Edit Lesson
+  </MenuItem>
+
+  <MenuItem
+    onClick={(e) => {
+      e.stopPropagation();                // ✅ block bubbling
+      setActiveLessonId(lesson.lesson_id);
+      handleDeleteLesson();               // ← this deletes & updates state only
+      closeMenu();
+    }}
+  >
+    Delete Lesson
+  </MenuItem>
+</Menu>
+
       </Box>
 
       {/* Description */}
