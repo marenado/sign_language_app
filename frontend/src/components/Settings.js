@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Avatar, Box, Button, TextField, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import api from "../services/api";                  // axios with { withCredentials: true }
+import React, { useContext, useCallback } from "react";
 import Sidebar from "./Sidebar";
 
 const Settings = () => {
