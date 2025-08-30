@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useContext } from "react";
-import axios from "axios";
 import { EmojiEvents, TrendingUp } from "@mui/icons-material"; // Import icons
 import Sidebar from "./Sidebar"; // Import Sidebar
 import { Line } from "react-chartjs-2";

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
+import api from "../services/api"; 
 
 const API_BASE =
   (import.meta?.env?.VITE_API_BASE ?? "").replace(/\/$/, "") ||
@@ -21,7 +21,7 @@ const ForgotPassword = () => {
     setSending(true);
 
     try {
-      const res = await axios.post(`${API_BASE}/auth/forgot-password`, { email });
+      const res = await api.post("/auth/forgot-password", { email });
       const text = res?.data?.message || "Password reset link sent! Check your email.";
       setMsg(text);
       setMsgType("success");

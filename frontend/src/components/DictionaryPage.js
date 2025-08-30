@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
-import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import api from "../services/api";
 import { Search as SearchIcon } from "@mui/icons-material"; // Material-UI Icon for the magnifying glass

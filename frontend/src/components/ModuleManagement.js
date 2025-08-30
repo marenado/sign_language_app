@@ -27,7 +27,6 @@ import {
   DialogTitle,
 } from "@mui/material";
 
-const BASE_URL = "https://signlearn.onrender.com";
 
 const ModuleManagement = () => {
   // State hooks

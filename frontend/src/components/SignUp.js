@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 const API_BASE = "https://signlearn.onrender.com";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,12 +41,12 @@ const SignUp = () => {
     const t = setTimeout(async () => {
       try {
         // 1) External validator — treat timeouts/errors as non-blocking
-        const { data: v } = await axios.post(`${API_BASE}/auth/validate-email`, { email }, { timeout: 4500 });
+        const { data: v } = await api.post("/auth/validate-email", { email });
         if (cancelled) return;
 
         if (v && v.valid) {
           // 2) Check if email already exists in our DB
-          const { data: existsRes } = await axios.post(`${API_BASE}/auth/check-email`, { email });
+          const { data: existsRes } = await api.post("/auth/check-email", { email });
           if (cancelled) return;
 
           if (existsRes?.exists) {
@@ -100,7 +100,7 @@ const SignUp = () => {
     }
 
     try {
-      await axios.post(`${API_BASE}/auth/signup`, { email, username, password });
+      await api.post("/auth/signup", { email, username, password });
       setMessage(
         "Account created successfully! The verification link was sent to your email address. Please verify it."
       );

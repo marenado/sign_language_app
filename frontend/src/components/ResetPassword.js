@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import api from "../services/api";
 import styled from "styled-components";
 
 const ResetPassword = () => {
@@ -16,7 +16,7 @@ const handleResetPassword = async (e) => {
     const token = searchParams.get("token");
   
     try {
-      await axios.post("https://signlearn.onrender.com/auth/reset-password", {
+       await api.post("/auth/reset-password", {
         token,
         new_password: password,
       });

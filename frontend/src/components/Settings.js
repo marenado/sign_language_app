@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { Avatar, Box, Button, TextField, Typography } from "@mui/material";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 
@@ -10,117 +9,119 @@ const Settings = () => {
     email: "",
     password: "",
     avatar: "",
-    role: "", // Add role property to differentiate between admin and regular users
+    role: "", // "admin" | "user"
   });
-
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-
   const navigate = useNavigate();
 
-  // Fetch user data on component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem("authToken");
-        const isAdmin = localStorage.getItem("isAdmin") === "true"; // Check if the user is an admin
-        if (!token) throw new Error("No authentication token found.");
-  
-        const apiEndpoint = isAdmin
-          ? "https://signlearn.onrender.com/admin/settings" // Admin-specific settings
-          : "https://signlearn.onrender.com/users/profile"; // Regular user settings
-  
-        const response = await axios.get(apiEndpoint, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-  
-        setUserData({
-          username: response.data.username || "",
-          email: response.data.email || "",
-          avatar: response.data.avatar || "",
-          password: "",
-          role: isAdmin ? "admin" : "user", // Set role dynamically
-        });
-      } catch (err) {
-        setError(err.response?.data?.detail || "Failed to fetch user data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-  
-    fetchData();
-  }, []);
-  
+  const resolveRole = (me) =>
+    me?.role === "admin" || me?.is_admin ? "admin" : "user";
 
-  // Handle form submission for updating profile
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1) Who am I?
+      const { data: me } = await api.get("/auth/me");
+      const role = resolveRole(me);
+
+      // 2) Load profile data (fallback to /auth/me if the specific endpoint isn’t needed)
+      let profile = me;
+      try {
+        const endpoint = role === "admin" ? "/admin/settings" : "/users/profile";
+        const { data } = await api.get(endpoint);
+        profile = data || me;
+      } catch {
+        // If that endpoint isn’t available, we’ll just use /auth/me data.
+      }
+
+      setUserData({
+        username: profile.username || "",
+        email: profile.email || "",
+        avatar: profile.avatar || "",
+        password: "",
+        role,
+      });
+    } catch (err) {
+      setError(
+        err?.response?.data?.detail ||
+          err?.response?.data?.message ||
+          "Failed to fetch user data."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSaving(true);
+    setError(null);
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) throw new Error("No authentication token found.");
-  
       const payload = {
         username: userData.username,
         email: userData.email,
-        password: userData.password,
+        // send password only if user typed one
+        ...(userData.password ? { password: userData.password } : {}),
       };
-  
-      const apiEndpoint =
-        userData.role === "admin"
-          ? "https://signlearn.onrender.com/admin/settings"
-          : "https://signlearn.onrender.com/users/settings";
-  
-      await axios.put(apiEndpoint, payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-  
-      alert("Profile updated successfully!");
-      navigate("/dashboard");
+
+      const endpoint =
+        userData.role === "admin" ? "/admin/settings" : "/users/settings";
+
+      await api.put(endpoint, payload);
+      navigate("/dashboard"); // or show a success toast/snackbar
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.detail || "Failed to update profile.";
-      alert(errorMessage);
+      setError(
+        err?.response?.data?.detail ||
+          err?.response?.data?.message ||
+          "Failed to update profile."
+      );
+    } finally {
+      setSaving(false);
     }
   };
-  
 
-  // Handle avatar upload
   const handleAvatarChange = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const formData = new FormData();
     formData.append("avatar", file);
 
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) throw new Error("No authentication token found.");
-
-      const response = await axios.put(
-        "https://signlearn.onrender.com/users/update-avatar",
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-
-      setUserData((prevData) => ({
-        ...prevData,
-        avatar: response.data.avatar,
-      }));
+      const endpoint =
+        userData.role === "admin"
+          ? "/admin/update-avatar"
+          : "/users/update-avatar";
+      const { data } = await api.put(endpoint, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setUserData((prev) => ({ ...prev, avatar: data?.avatar || prev.avatar }));
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.detail || "Failed to update avatar.";
-      alert(errorMessage);
+      setError(
+        err?.response?.data?.detail ||
+          err?.response?.data?.message ||
+          "Failed to update avatar."
+      );
     }
   };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", height: "100vh" }}>
+        <Sidebar />
+        <Box sx={{ flex: 1, display: "grid", placeItems: "center" }}>
+          <Typography>Loading…</Typography>
+        </Box>
+      </Box>
+    );
+  }
 
   // if (loading) return <p>Loading...</p>;
   // if (error) return <p style={{ color: "red" }}>{error}</p>;
