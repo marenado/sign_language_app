@@ -78,11 +78,13 @@ const ModuleManagement = () => {
   const [activeLessonId, setActiveLessonId] = useState(null);
   const [editLessonModalOpen, setEditLessonModalOpen] = useState(false);
   const [lessonToEdit, setLessonToEdit] = useState({
-    title: "",
-    description: "",
-    duration: null,
-    difficulty: "",
-  });
+  id: null,
+  title: "",
+  description: "",
+  duration: null,
+  difficulty: "Beginner",
+});
+
 
   const [videoSearchQuery, setVideoSearchQuery] = useState("");
   const [videoSearchResults, setVideoSearchResults] = useState([]);
@@ -130,16 +132,18 @@ const closeMenu = () => {
 
 
 
+
 const openEditLessonModal = (lesson) => {
-  // console.log("Opening edit modal for lesson:", lesson);
-  setActiveLessonId(lesson.lesson_id); // Set active ID for the lesson being edited
   setLessonToEdit({
+    id: lesson.lesson_id,
     title: lesson.title || "",
     description: lesson.description || "",
-    duration: lesson.duration || null,
-    difficulty: lesson.difficulty || "",
+    duration: typeof lesson.duration === "number" ? lesson.duration : (lesson.duration ? Number(lesson.duration) : null),
+    difficulty: lesson.difficulty || "Beginner",
   });
   setEditLessonModalOpen(true);
+  // close the menu so it can't reset state behind the modal
+  setMenuAnchor(null);
 };
 
   
@@ -192,52 +196,41 @@ const closeEditLessonModal = () => {
   
 
   const handleEditLesson = async () => {
-    if (!activeLessonId) {
-      // console.error("No active lesson ID is set for updating.");
-      return;
-    }
-  
-    // Fallback to find the module if `selectedModule` is null
-    const currentModule =
-      selectedModule ||
-      modules.find((module) =>
-        lessons[module.module_id]?.some(
-          (lesson) => lesson.lesson_id === activeLessonId
-        )
-      );
-  
-    if (!currentModule || !currentModule.module_id) {
-      // console.error("No module selected or module_id is missing.");
-      return;
-    }
-  
-    const payload = {
-      title: lessonToEdit.title || undefined,
-      description: lessonToEdit.description || undefined,
-      duration: lessonToEdit.duration || undefined,
-      difficulty: lessonToEdit.difficulty || undefined,
-    };
-  
-    try {
-      const response = await api.put(`/admin/lessons/${activeLessonId}`, payload);
-      // console.log("Lesson updated successfully:", response.data);
-  
-      // Update lessons state
-      setLessons((prevLessons) => {
-        const updatedLessons = prevLessons[currentModule.module_id]?.map(
-          (lesson) =>
-            lesson.lesson_id === activeLessonId
-              ? { ...lesson, ...response.data }
-              : lesson
-        );
-        return { ...prevLessons, [currentModule.module_id]: updatedLessons };
-      });
-  
-      closeEditLessonModal();
-    } catch (error) {
-      // console.error("Error updating lesson:", error.response?.data || error.message);
-    }
+  const id = lessonToEdit.id;
+  if (!id) {
+    console.error("No lesson id found for update.");
+    return;
+  }
+
+  const currentModuleId =
+    selectedModule?.module_id ??
+    Object.keys(lessons).find((mid) =>
+      (lessons[mid] || []).some((l) => l.lesson_id === id)
+    );
+
+  const payload = {
+    title: lessonToEdit.title?.trim() || undefined,
+    description: lessonToEdit.description?.trim() || undefined,
+    duration: Number.isFinite(Number(lessonToEdit.duration))
+      ? Number(lessonToEdit.duration)
+      : undefined,
+    difficulty: lessonToEdit.difficulty || undefined,
   };
+
+  try {
+    const { data } = await api.put(`/admin/lessons/${id}`, payload);
+    setLessons((prev) => {
+      if (!currentModuleId) return prev;
+      const list = prev[currentModuleId] || [];
+      const updated = list.map((l) => (l.lesson_id === id ? { ...l, ...data } : l));
+      return { ...prev, [currentModuleId]: updated };
+    });
+    setEditLessonModalOpen(false);
+  } catch (error) {
+    console.error("Error updating lesson:", error.response?.data || error.message);
+  }
+};
+
   
   
   
@@ -1107,40 +1100,44 @@ const createTask = async () => {
         margin="normal"
       />
       <TextField
-        label="Difficulty"
-        value={lessonToEdit.difficulty}
-        onChange={(e) =>
-          setLessonToEdit((prev) => ({ ...prev, difficulty: e.target.value }))
-        }
-        fullWidth
-        margin="normal"
-      />
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: "20px",
-        }}
-      >
-        <Button onClick={closeEditLessonModal} variant="outlined" color="secondary">
-          Cancel
-        </Button>
-        <Button
-  onClick={() => handleEditLesson(activeLessonId)}
-  variant="contained"
+  select
+  label="Difficulty"
+  value={lessonToEdit.difficulty}
+  onChange={(e) =>
+    setLessonToEdit((prev) => ({ ...prev, difficulty: e.target.value }))
+  }
+  fullWidth
+  margin="normal"
+  SelectProps={{ native: true }}
+>
+  <option value="Beginner">Beginner</option>
+  <option value="Intermediate">Intermediate</option>
+  <option value="Advanced">Advanced</option>
+</TextField>
+
+<Box
   sx={{
-    backgroundColor: "#5b21b6",
-    color: "#fff",
-    "&:hover": { backgroundColor: "#4a148c" },
+    display: "flex",
+    justifyContent: "space-between",
+    marginTop: "20px",
   }}
 >
-  Save Changes
-</Button>
+  <Button onClick={closeEditLessonModal} variant="outlined" color="secondary">
+    Cancel
+  </Button>
+  <Button
+    onClick={handleEditLesson}   // ← no param here
+    variant="contained"
+    sx={{
+      backgroundColor: "#5b21b6",
+      color: "#fff",
+      "&:hover": { backgroundColor: "#4a148c" },
+    }}
+  >
+    Save Changes
+  </Button>
+</Box>
 
-
-
-
-      </Box>
     </Box>
   </Modal>
 )}
