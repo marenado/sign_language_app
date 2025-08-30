@@ -28,34 +28,23 @@ const TaskList = () => {
     "sign_speed_challenge",
     "sign_presentation", // New task type
   ]);
+  
   const [taskData, setTaskData] = useState({
-    task_type: "",
-    content: {},
-    correct_answer: "",
-    points: 1,
-  });
-  const [videoSearchQuery, setVideoSearchQuery] = useState("");
-const [videoSearchResults, setVideoSearchResults] = useState([]);
-const [selectedVideo, setSelectedVideo] = useState(null); // For the currently selected video
-const [newPair, setNewPair] = useState({}); // For temporarily storing a new pair (word and video)
+  task_type: "",
+  content: {},
+  correct_answer: {},   // ← change to {}
+  points: 1,
+});
 
+  const saveTask = async () => {
+    const ok = await ensureSession();
+if (!ok) return;
 
-const loadTasks = useCallback(async () => {
-  try {
-    const { data } = await api.get("/admin/tasks", {
-      params: { lesson_id: Number(lessonId) },
-    });
-    setTasks(data);
-  } catch (error) {
-    console.error("Error fetching tasks:", error.response?.data || error.message);
-  }
-}, [lessonId]);
-const saveTask = async () => {
   const sanitizedPoints =
-    taskData.task_type === "sign_presentation" ? 0 : Math.max(0, Number(taskData.points || 0));
+    taskData.task_type === "sign_presentation"
+      ? 0
+      : Math.max(0, Number(taskData.points || 0));
 
-
-  // If some task types store a string, wrap it so the API (expects Dict) doesn't drop it
   const correctedAnswer =
     typeof taskData.correct_answer === "string"
       ? { text: taskData.correct_answer }
@@ -63,30 +52,83 @@ const saveTask = async () => {
 
   const payload = {
     task_type: taskData.task_type,
-    content: taskData.content || {},                    // dict
+    content: taskData.content || {},
     correct_answer: taskData.task_type === "sign_presentation" ? {} : correctedAnswer,
     points: sanitizedPoints,
-    lesson_id: Number(lessonId),                        // ensure number
+    lesson_id: Number(lessonId),
     version: Number(taskData.version || 1),
     video_ids: taskData.content?.video_id ? [taskData.content.video_id] : [],
   };
 
   try {
+    await ensureSession();
     if (taskData.task_id) {
       await api.put(`/admin/tasks/${taskData.task_id}`, payload);
     } else {
       await api.post(`/admin/tasks`, payload);
     }
-    await loadTasks();   // reuse your helper
+    await loadTasks();
     closeModal();
   } catch (error) {
     console.error("Error saving task:", error.response?.data || error.message);
   }
 };
 
+  const [videoSearchQuery, setVideoSearchQuery] = useState("");
+const [videoSearchResults, setVideoSearchResults] = useState([]);
+const [selectedVideo, setSelectedVideo] = useState(null); // For the currently selected video
+const [newPair, setNewPair] = useState({}); // For temporarily storing a new pair (word and video)
 
-  
 
+ const ensureSession = useCallback(async () => {
+    try {
+      await api.get("/auth/me");          // cookie-based check
+      return true;
+    } catch {
+      try {
+        await api.post("/auth/refresh");  // try refresh once
+        return true;
+      } catch {
+        console.error("Not authenticated");
+        return false;
+      }
+    }
+  }, []);
+
+  const loadTasks = useCallback(async () => {
+    if (!lessonId) return;
+    const ok = await ensureSession();     // ⬅️ guard
+    if (!ok) return;
+
+    try {
+      const { data } = await api.get("/admin/tasks", {
+        params: { lesson_id: Number(lessonId) },
+      });
+      setTasks(Array.isArray(data) ? data : []);
+    } catch (error) {
+      const status = error.response?.status;
+      // Final fallback: if this specific call 401s, try a one-off refresh and retry
+      if (status === 401) {
+        try {
+          await api.post("/auth/refresh");
+          const { data } = await api.get("/admin/tasks", {
+            params: { lesson_id: Number(lessonId) },
+          });
+          setTasks(Array.isArray(data) ? data : []);
+          return;
+        } catch (e2) {
+          console.error("Error fetching tasks after refresh:", e2.response?.data || e2.message);
+        }
+      }
+      console.error("Error fetching tasks:", error.response?.data || error.message);
+    }
+  }, [lessonId, ensureSession]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+ 
 
   const searchVideos = async () => {
     if (!videoSearchQuery.trim()) return;
@@ -109,10 +151,6 @@ const saveTask = async () => {
   }); // Reset the task data
 };
 
-
-  useEffect(() => {
-  loadTasks();
-}, [loadTasks]);
 
 
 
@@ -354,7 +392,11 @@ const deleteTask = useCallback(async (taskId) => {
         }}
       />
       <Button
-        variant={taskData.correct_answer === index ? "contained" : "outlined"}
+         variant={
+   taskData.correct_answer?.option === taskData.content.options[index]
+     ? "contained"
+     : "outlined"
+ }
         color="success"
         onClick={() =>
           setTaskData((prev) => ({
@@ -369,7 +411,7 @@ const deleteTask = useCallback(async (taskId) => {
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
         }}
       >
-        {taskData.correct_answer.option === taskData.content.options[index]
+        {taskData.correct_answer?.option === taskData.content.options[index]
           ? "Correct"
           : "Set Correct"}
       </Button>
