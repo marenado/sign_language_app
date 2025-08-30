@@ -30,7 +30,8 @@ from app.utils.auth import require_admin, get_current_user_cookie, hash_password
 
 router = APIRouter(
     prefix="/admin",
-    tags=["Admin"]
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],  # <- apply to all routes here
 )
 
 
