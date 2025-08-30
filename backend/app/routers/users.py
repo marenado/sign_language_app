@@ -461,6 +461,10 @@ async def get_languages(db: AsyncSession = Depends(get_db)):
 
 
 
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 @router.get("/lessons/{lesson_id}/tasks", response_model=List[TaskResponse])
 async def get_tasks_for_lesson(
     lesson_id: int,
@@ -469,49 +473,52 @@ async def get_tasks_for_lesson(
 ):
     """
     Fetch all tasks for a specific lesson.
+    Returns [] with 200 OK when the lesson has no tasks.
     """
-    logger.info(f"Fetching tasks for lesson ID: {lesson_id}")
+    logger.info("Fetching tasks for lesson ID: %s", lesson_id)
 
     try:
-        tasks_query = await db.execute(
+        result = await db.execute(
             select(Task)
             .where(Task.lesson_id == lesson_id)
             .options(selectinload(Task.videos))
             .order_by(Task.task_id)
         )
-        tasks = tasks_query.scalars().all()
+        tasks = result.scalars().all()
 
         if not tasks:
-            raise HTTPException(status_code=404, detail=f"No tasks found for lesson ID: {lesson_id}")
+            return []
 
-        # Process tasks
-        task_responses = []
-        for task in tasks:
-            if task.task_type == "sign_presentation":
-                # Ensure video_id is moved to content and videos is emptied
-                if task.videos:
-                    task.content["video_id"] = task.videos[0].video_id
-                    task.videos = []  # Clear videos for sign_presentation tasks
-            
+        task_responses: List[TaskResponse] = []
+        for t in tasks:
+            content = dict(t.content or {})
+            videos = list(t.videos or [])
+
+            if t.task_type == "sign_presentation" and videos:
+                # move the id into content only for the response
+                content["video_id"] = videos[0].video_id
+                videos = []  # only affects the response, not ORM object
+
             task_responses.append(
                 TaskResponse(
-                    task_id=task.task_id,
-                    task_type=task.task_type,
-                    content=task.content,
-                    correct_answer=task.correct_answer,
-                    version=task.version,
-                    points=task.points,
-                    videos=task.videos,
+                    task_id=t.task_id,
+                    task_type=t.task_type,
+                    content=content,
+                    correct_answer=t.correct_answer,
+                    version=t.version,
+                    points=t.points,
+                    videos=videos,
                 )
             )
 
         return task_responses
 
-    except Exception as e:
-        logger.error(f"Error fetching tasks for lesson ID {lesson_id}: {e}", exc_info=True)
+    except HTTPException:
+        # don't convert 404/401/etc into 500
+        raise
+    except Exception:
+        logger.exception("Error fetching tasks for lesson %s", lesson_id)
         raise HTTPException(status_code=500, detail="Failed to fetch tasks")
-
-
 
 
 

@@ -409,13 +409,23 @@ const searchVideos = async () => {
   
 
   const fetchTasks = async (lessonId) => {
-    try {
-      const res = await api.get("/admin/tasks", { params: { lesson_id: lessonId } });
-      setTasks((prev) => ({ ...prev, [lessonId]: res.data }));
-    } catch (error) {
-      console.error(`Error fetching tasks for lesson ${lessonId}:`, error.response?.data || error.message);
+  try {
+    const { data } = await api.get("/admin/tasks", { params: { lesson_id: lessonId } });
+    // Always store an array
+    setTasks((prev) => ({ ...prev, [lessonId]: Array.isArray(data) ? data : [] }));
+  } catch (err) {
+    // Treat 404 as "no tasks"
+    if (err?.response?.status === 404) {
+      setTasks((prev) => ({ ...prev, [lessonId]: [] }));
+      return;
     }
-  };
+    console.error(
+      `Error fetching tasks for lesson ${lessonId}:`,
+      err.response?.data || err.message
+    );
+  }
+};
+
   
 
   
