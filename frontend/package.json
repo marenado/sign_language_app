@@ -2,7 +2,7 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "homepage": ".",
+  "homepage": "/",
   "dependencies": {
     "@atlaskit/drag-and-drop": "^0.15.1",
     "@emotion/react": "^11.14.0",
@@ -39,21 +39,20 @@
     ]
   },
   "browserslist": {
-  "production": [
-    "chrome >= 120",
-    "firefox >= 120",
-    "edge >= 120",
-    "safari >= 16",
-    "not dead"
-  ],
-  "development": [
-    "last 1 chrome version",
-    "last 1 firefox version",
-    "last 1 edge version",
-    "last 1 safari version"
-  ]
-},
-
+    "production": [
+      "chrome >= 120",
+      "firefox >= 120",
+      "edge >= 120",
+      "safari >= 16",
+      "not dead"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 edge version",
+      "last 1 safari version"
+    ]
+  },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   }
