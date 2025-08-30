@@ -252,22 +252,17 @@ const closeEditLessonModal = () => {
   
   
   
-  
-  
-  
-  
-
 const handleDeleteModule = async () => {
   if (!moduleToDelete) return;
-
   try {
     await api.delete(`/admin/modules/${moduleToDelete.module_id}`);
-    fetchModules(); 
-    closeDeleteDialog(); 
+    await fetchModules();          // refresh list
+    closeDeleteDialog();
   } catch (error) {
-    // console.error("Error deleting module:", error.response?.data || error.message);
+    console.error("Error deleting module:", error.response?.data || error.message);
   }
 };
+
 
 const openLessonModal = (module) => {
   setSelectedModule(module);
@@ -1338,12 +1333,34 @@ const createTask = async () => {
   </Box>
 </Modal>
 
+<Dialog open={isDeleteDialogOpen} onClose={closeDeleteDialog}>
+  <DialogTitle>Delete module?</DialogTitle>
+  <DialogContent>
+    <DialogContentText>
+      This will remove the module and its lessons/tasks. This action can’t be undone.
+    </DialogContentText>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={closeDeleteDialog}>Cancel</Button>
+    <Button
+      onClick={handleDeleteModule}
+      color="error"
+      variant="contained"
+      autoFocus
+    >
+      Delete
+    </Button>
+  </DialogActions>
+</Dialog>
+
+
 
 
       </Box>
     </Box>
   );
 };
+
 
 
 

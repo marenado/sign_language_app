@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import axios from "axios";
+import api from "../services/api";
 import Sidebar from "./Sidebar";
 import { Edit, Delete } from "@mui/icons-material";
 
@@ -43,76 +43,56 @@ const [newPair, setNewPair] = useState({}); // For temporarily storing a new pai
 
 
 const saveTask = async () => {
-    const sanitizedPoints = taskData.task_type === "sign_presentation" ? 0 : Math.max(taskData.points, 0); // Ensure points are only for other tasks
-    const payload = {
-      task_type: taskData.task_type,
-      content: taskData.content,
-      points: sanitizedPoints,
-      lesson_id: lessonId,
-      version: taskData.version || 1,
-      video_ids: taskData.content.video_id ? [taskData.content.video_id] : [],
-      correct_answer: taskData.task_type === "sign_presentation" ? {} : taskData.correct_answer || {},
-    };
+  const sanitizedPoints =
+    taskData.task_type === "sign_presentation" ? 0 : Math.max(0, Number(taskData.points || 0));
 
-    try {
-      if (taskData.task_id) {
-        await axios.put(`${BASE_URL}/admin/tasks/${taskData.task_id}`, payload, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        });
-      } else {
-        await axios.post(`${BASE_URL}/admin/tasks`, payload, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        });
-      }
-      await fetchTasks();
-      closeModal();
-    } catch (error) {
-      console.error("Error saving task:", error.response?.data || error.message);
-    }
+  // If some task types store a string, wrap it so the API (expects Dict) doesn't drop it
+  const correctedAnswer =
+    typeof taskData.correct_answer === "string"
+      ? { text: taskData.correct_answer }
+      : (taskData.correct_answer || {});
+
+  const payload = {
+    task_type: taskData.task_type,
+    content: taskData.content || {},                    // dict
+    correct_answer: taskData.task_type === "sign_presentation" ? {} : correctedAnswer,
+    points: sanitizedPoints,
+    lesson_id: Number(lessonId),                        // ensure number
+    version: Number(taskData.version || 1),
+    video_ids: taskData.content?.video_id ? [taskData.content.video_id] : [],
   };
+
+  try {
+    if (taskData.task_id) {
+      await api.put(`/admin/tasks/${taskData.task_id}`, payload);
+    } else {
+      await api.post(`/admin/tasks`, payload);
+    }
+    await fetchTasks();   // reuse your helper
+    closeModal();
+  } catch (error) {
+    console.error("Error saving task:", error.response?.data || error.message);
+  }
+};
+
   
 
 
-  const updateTask = async () => {
-    if (!taskData.task_id) {
-      console.error("Task ID is undefined. Cannot update the task.");
-      return;
-    }
-    try {
-      await axios.put(
-        `${BASE_URL}/admin/tasks/${taskData.task_id}`,
-        {
-            task_type: taskData.task_type,
-            content: taskData.content,
-            correct_answer: taskData.correct_answer,
-            points: taskData.task_type === "sign_presentation" ? 0 : taskData.points, // Set points to 0 for sign_presentation
-            lesson_id: lessonId,
-            version: taskData.version || 1,
-            video_ids: taskData.content.video_id ? [taskData.content.video_id] : [],
-          },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }
-      );
-      await fetchTasks(); // Refresh the tasks list
-      closeModal(); // Close the modal
-    } catch (error) {
-      console.error("Error updating task:", error.response?.data || error.message);
-    }
-  };
-  
+  const fetchTasks = useCallback(async () => {
+  try {
+    const { data } = await api.get("/admin/tasks", {
+      params: { lesson_id: Number(lessonId) },
+    });
+    setTasks(data);
+  } catch (error) {
+    console.error("Error fetching tasks:", error.response?.data || error.message);
+  }
+}, [lessonId]);
 
-  const fetchTasks = async () => {
-    try {
-      const res = await axios.get(`${BASE_URL}/admin/tasks?lesson_id=${lessonId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
-      // console.log("Fetched Tasks:", res.data); // Debug API response
-      setTasks(res.data);
-    } catch (error) {
-      console.error("Error fetching tasks:", error.response?.data || error.message);
-    }
-  };
+// call it on mount / lesson change
+useEffect(() => {
+  fetchTasks();
+}, [fetchTasks]);
   
   
 
@@ -121,9 +101,7 @@ const saveTask = async () => {
     if (!videoSearchQuery.trim()) return;
   
     try {
-      const res = await axios.get(`${BASE_URL}/admin/videos?query=${videoSearchQuery}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
+      const res = await api.get("/admin/videos", { params: { query: videoSearchQuery } });
       setVideoSearchResults(res.data);
     } catch (error) {
       console.error("Error searching videos:", error.response?.data || error.message);
@@ -144,9 +122,7 @@ const saveTask = async () => {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const res = await axios.get(`${BASE_URL}/admin/tasks?lesson_id=${lessonId}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        });
+        const res = await api.get("/admin/tasks", { params: { lesson_id: Number(lessonId) } });
         setTasks(res.data);
       } catch (error) {
         console.error("Error fetching tasks:", error.response?.data || error.message);
@@ -214,58 +190,8 @@ const saveTask = async () => {
 //   };
   
 
-  const createTask = async () => {
-    try {
-      await axios.post(
-        `${BASE_URL}/admin/tasks`,
-        {
-            task_type: taskData.task_type,
-            content: taskData.content,
-            correct_answer: taskData.correct_answer,
-            points: taskData.task_type === "sign_presentation" ? 0 : taskData.points, // Set points to 0 for sign_presentation
-            lesson_id: lessonId,
-            version: 1,
-            video_ids: taskData.content.video_id ? [taskData.content.video_id] : [],
-          },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-        }
-      );
-      await fetchTasks(); // Refresh the tasks list
-      closeModal(); // Close the modal
-    } catch (error) {
-      console.error("Error creating task:", error.response?.data || error.message);
-    }
-  };
-  
-  
-  const editTask = async (taskId) => {
-    // Fetch the specific task details to prefill modal inputs
-    const taskToEdit = tasks.find((task) => task.task_id === taskId);
-    setTaskData({
-      task_type: taskToEdit.task_type,
-      content: taskToEdit.content,
-      correct_answer: taskToEdit.correct_answer,
-      points: taskToEdit.points,
-    });
-    openModal();
-  };
-  
-  const deleteTask = async (taskId) => {
-    try {
-      await axios.delete(`${BASE_URL}/admin/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
-      // Refresh the task list after deletion
-      const res = await axios.get(`${BASE_URL}/admin/tasks?lesson_id=${lessonId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
-      });
-      setTasks(res.data);
-    } catch (error) {
-      console.error("Error deleting task:", error.response?.data || error.message);
-    }
-  };
-  
+
+
 
 
   const renderTaskInputs = () => {
