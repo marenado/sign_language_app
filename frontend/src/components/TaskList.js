@@ -146,7 +146,7 @@ const [newPair, setNewPair] = useState({}); // For temporarily storing a new pai
   setTaskData({
     task_type: "",
     content: {},
-    correct_answer: "",
+    correct_answer: {},
     points: 1,
   }); // Reset the task data
 };
@@ -163,7 +163,7 @@ const [newPair, setNewPair] = useState({}); // For temporarily storing a new pai
     setTaskData({
       task_type: "",
       content: {},
-      correct_answer: "",
+      correct_answer: {},
       points: 1,
     });
   };
@@ -425,7 +425,7 @@ const deleteTask = useCallback(async (taskId) => {
               ...prev.content,
               options: prev.content.options.filter((_, i) => i !== index),
             },
-            correct_answer: prev.correct_answer.option === option ? {} : prev.correct_answer,
+            correct_answer: prev.correct_answer?.option === option ? {} : prev.correct_answer,
           }))
         }
         sx={{
@@ -815,7 +815,7 @@ const deleteTask = useCallback(async (taskId) => {
               label="Gesture Description"
               value={taskData.content.description || ""}
               onChange={(e) =>
-                setTaskData((prev) => ({ ...prev, content: { description: e.target.value },  points: Math.max(0, Number(e.target.value)), }))
+                setTaskData((prev) => ({ ...prev, content: { description: e.target.value } }))
               }
               sx={{ marginBottom: "15px" }}
             />
@@ -979,7 +979,7 @@ const deleteTask = useCallback(async (taskId) => {
                           setTaskData((prev) => {
                             const updatedOptions = [...(prev.content.options || [])];
                             updatedOptions[index] = e.target.value;
-                            return { ...prev, content: { ...prev.content, options: updatedOptions },  points: Math.max(0, Number(e.target.value)),};
+                             return { ...prev, content: { ...prev.content, options: updatedOptions } };
                           })
                         }
                         sx={{
@@ -1067,22 +1067,24 @@ const deleteTask = useCallback(async (taskId) => {
                 </Box>
           
                 {/* Time Limit */}
-                <TextField
-                  fullWidth
-                  label="Time Limit (seconds)"
-                  type="number"
-                  value={taskData.content.time_limit || ""}
-                  onChange={(e) =>
-                    setTaskData((prev) => ({
-                      ...prev,
-                      content: { ...prev.content, time_limit: Math.max(0, e.target.value),  points: Math.max(0, Number(e.target.value)),
+<TextField
+  fullWidth
+  label="Time Limit (seconds)"
+  type="number"
+  value={taskData.content.time_limit ?? ""}  // keep 0 visible; empty shows ""
+  onChange={(e) => {
+    const n = parseInt(e.target.value, 10);
+    setTaskData((prev) => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        time_limit: Number.isNaN(n) ? 0 : Math.max(0, n),
+      },
+    }));
+  }}
+  sx={{ marginBottom: "15px" }}
+/>
 
-
-                       },
-                    }))
-                  }
-                  sx={{ marginBottom: "15px" }}
-                />
               </>
             );
           
