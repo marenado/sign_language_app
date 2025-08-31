@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect, createContext } from 'react';
+import React, { useState, useEffect, useContext, createContext } from 'react';
 import styled from 'styled-components';
 import {
   BrowserRouter as Router,
@@ -30,14 +30,20 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
-const normalizeIsAdmin = (v) => {
-  if (v === true || v === 1) return true;
+
+const readIsAdmin = (d) => {
+  const v = d?.is_admin ?? d?.isAdmin ?? d?.role;
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v === 1;
   if (typeof v === 'string') {
     const s = v.trim().toLowerCase();
-    return s === 'true' || s === '1';
+    if (s === 'admin') return true;
+    if (s === 'true' || s === '1') return true;
+    if (s === 'false' || s === '0' || s === '') return false;
   }
   return false;
 };
+
 
 const API_BASE = (import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com').replace(
   /\/$/,
@@ -62,7 +68,7 @@ const PostAuth = () => {
       try {
         const { data } = await api.get('/auth/me');
         if (!alive) return;
-        const isAdmin = normalizeIsAdmin(data?.is_admin);
+        const isAdmin = readIsAdmin(data);
 
         // <- IMPORTANT: set the auth context so guards have the correct value
         setAuth({ ready: true, authenticated: true, isAdmin });
@@ -91,14 +97,8 @@ const Login = ({ onLoggedIn }) => {
     setMessage('');
     try {
       await api.post('/auth/login', { email, password });
-      // Option A (simple): let PostAuth decide for both paths
       navigate('/post-auth', { replace: true });
 
-      // Option B (inline decide). If you prefer this, comment the line above:
-      // const { data } = await api.get('/auth/me');
-      // const isAdmin = normalizeIsAdmin(data?.is_admin);
-      // onLoggedIn(isAdmin);
-      // navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
     } catch (error) {
       console.error('Login error:', error.response?.data?.detail || error.message);
       setMessage('Invalid email or password. Please try again.');
@@ -189,7 +189,7 @@ const App = () => {
         setAuth({
           ready: true,
           authenticated: true,
-          isAdmin: normalizeIsAdmin(data?.is_admin),
+          isAdmin: readIsAdmin(data),
         });
       } catch {
         if (!alive) return;
