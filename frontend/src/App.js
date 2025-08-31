@@ -1,76 +1,77 @@
-import React, { useState, useEffect, createContext } from "react";
-import styled from "styled-components";
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation} from "react-router-dom";
-import TypedText from "./components/TypedText";
+import React, { useState, useEffect, createContext } from 'react';
+import styled from 'styled-components';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
+import TypedText from './components/TypedText';
 
-import SignUp from "./components/SignUp";
-import DictionaryPage from "./components/DictionaryPage";
-import TasksPage from "./components/TasksPage";
-import Dashboard from "./components/Dashboard";
-import TaskList from "./components/TaskList";
-import Settings from "./components/Settings";
-import EmailVerified from "./components/EmailVerified";
-import ModulePage from "./components/ModulePage";
-import ForgotPassword from "./components/ForgotPassword";
-import ResetPassword from "./components/ResetPassword";
-import ModuleManagement from "./components/ModuleManagement";
-import api from "./services/api"; // axios with { withCredentials: true }
+import SignUp from './components/SignUp';
+import DictionaryPage from './components/DictionaryPage';
+import TasksPage from './components/TasksPage';
+import Dashboard from './components/Dashboard';
+import TaskList from './components/TaskList';
+import Settings from './components/Settings';
+import EmailVerified from './components/EmailVerified';
+import ModulePage from './components/ModulePage';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
+import ModuleManagement from './components/ModuleManagement';
+import api from './services/api';
 
-// -------- Auth context (used by Sidebar/Dashboard) --------
 export const AuthContext = createContext({
   auth: { ready: false, authenticated: false, isAdmin: false },
   setAuth: () => {},
   logout: () => {},
 });
 
-// -------- Login / Welcome --------
-const Login = ({ onLoggedIn, autoCheck = false }) =>  {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+const Login = ({ onLoggedIn, autoCheck = false }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-  const doCheck = autoCheck || new URLSearchParams(location.search).get("auto") === "1";
+  const doCheck = autoCheck || new URLSearchParams(location.search).get('auto') === '1';
 
-
-  // If session cookies already exist (e.g., after Google/Facebook redirect),
-  // auto-route the user in. Comment this effect out if you want to ALWAYS
-  // show the welcome page even when already authenticated.
-    useEffect(() => {
-   if (!doCheck) return;                  // <-- do nothing on "/"
+  useEffect(() => {
+    if (!doCheck) return;
     let alive = true;
     (async () => {
       try {
-        const { data } = await api.get("/auth/me"); // 401 if not authed
+        const { data } = await api.get('/auth/me');
         if (!alive) return;
         onLoggedIn(!!data.is_admin);
-        navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
-      } catch {
-        /* stay on login */
-      }
+        navigate(data.is_admin ? '/admin/modules' : '/dashboard', { replace: true });
+      } catch {}
     })();
-    return () => { alive = false; };
-   }, [doCheck, navigate, onLoggedIn]);
+    return () => {
+      alive = false;
+    };
+  }, [doCheck, navigate, onLoggedIn]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setMessage("");
+    setMessage('');
     try {
-      await api.post("/auth/login", { email, password }); // sets HttpOnly cookies
-      const { data } = await api.get("/auth/me");
+      await api.post('/auth/login', { email, password });
+      const { data } = await api.get('/auth/me');
       onLoggedIn(!!data.is_admin);
-      navigate(data.is_admin ? "/admin/modules" : "/dashboard", { replace: true });
+      navigate(data.is_admin ? '/admin/modules' : '/dashboard', { replace: true });
     } catch (error) {
-      console.error("Login error:", error.response?.data?.detail || error.message);
-      setMessage("Invalid email or password. Please try again.");
+      console.error('Login error:', error.response?.data?.detail || error.message);
+      setMessage('Invalid email or password. Please try again.');
     }
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = "https://signlearn.onrender.com/auth/google/login";
+    window.location.href = 'https://signlearn.onrender.com/auth/google/login';
   };
   const handleFacebookLogin = () => {
-    window.location.href = "https://signlearn.onrender.com/auth/facebook/login";
+    window.location.href = 'https://signlearn.onrender.com/auth/facebook/login';
   };
 
   return (
@@ -106,7 +107,7 @@ const Login = ({ onLoggedIn, autoCheck = false }) =>  {
           <Button type="submit">Sign in</Button>
           {message && <Message>{message}</Message>}
 
-          <ForgotPasswordLink onClick={() => navigate("/forgot-password")}>
+          <ForgotPasswordLink onClick={() => navigate('/forgot-password')}>
             Forgot Password?
           </ForgotPasswordLink>
 
@@ -120,16 +121,13 @@ const Login = ({ onLoggedIn, autoCheck = false }) =>  {
             </SocialButton>
           </SocialButtons>
 
-          <SignUpButton onClick={() => navigate("/signup")}>
-            Create a new account
-          </SignUpButton>
+          <SignUpButton onClick={() => navigate('/signup')}>Create a new account</SignUpButton>
         </Form>
       </RightSection>
     </Container>
   );
 };
 
-// -------- Simple route guards --------
 function Protected({ authenticated, children }) {
   return authenticated ? children : <Navigate to="/" replace />;
 }
@@ -144,16 +142,14 @@ function UserOnly({ authenticated, isAdmin, children }) {
   return children;
 }
 
-// -------- App --------
 const App = () => {
   const [auth, setAuth] = useState({ ready: false, authenticated: false, isAdmin: false });
 
-  // Bootstrap from cookie-backed session
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const { data } = await api.get("/auth/me");
+        const { data } = await api.get('/auth/me');
         if (!alive) return;
         setAuth({ ready: true, authenticated: true, isAdmin: !!data.is_admin });
       } catch {
@@ -161,11 +157,15 @@ const App = () => {
         setAuth({ ready: true, authenticated: false, isAdmin: false });
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const logout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
+    try {
+      await api.post('/auth/logout');
+    } catch {}
     setAuth({ ready: true, authenticated: false, isAdmin: false });
   };
 
@@ -176,15 +176,15 @@ const App = () => {
       <Router>
         <Routes>
           {/* Welcome page lives at "/" */}
-           <Route
-   path="/"
-   element={<Login autoCheck={false} onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
- />
-          {/* Keep /login as an alias to the same welcome page */}
-           {/* <Route
-  path="/login"
-   element={<Login autoCheck onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
- /> */}
+          <Route
+            path="/"
+            element={
+              <Login
+                autoCheck={false}
+                onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })}
+              />
+            }
+          />
           {/* Public auth pages */}
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailVerified />} />
@@ -271,7 +271,6 @@ const App = () => {
 
 export default App;
 
-/* ------- styles (unchanged) ------- */
 const Container = styled.div`
   display: flex;
   height: 100vh;
@@ -286,42 +285,111 @@ const LeftSection = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: center;
-  h1 { font-size: 2.5rem; margin-bottom: 10px; }
-  p { font-size: 1.2rem; margin-bottom: 20px; }
+  h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+  }
+  p {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+  }
 `;
-const Description = styled.p` line-height: 1.5; font-size: 1rem; `;
+const Description = styled.p`
+  line-height: 1.5;
+  font-size: 1rem;
+`;
 const RightSection = styled.div`
-  flex: 1; background-color: #f8f9fa; color: #333;
-  display: flex; justify-content: center; align-items: center; height: 100%;
+  flex: 1;
+  background-color: #f8f9fa;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
 `;
 const Form = styled.form`
-  width: 80%; max-width: 400px; text-align: center;
-  h2 { font-size: 1.8rem; margin-bottom: 20px; }
+  width: 80%;
+  max-width: 400px;
+  text-align: center;
+  h2 {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+  }
 `;
 const Input = styled.input`
-  width: 100%; padding: 10px; margin: 10px 0;
-  border: 1px solid #ccc; border-radius: 5px; font-size: 1rem;
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1rem;
 `;
 const Button = styled.button`
-  width: 100%; padding: 10px; background-color: #4a316f; color: #fff;
-  border: none; border-radius: 5px; font-size: 1rem; cursor: pointer;
-  &:hover { background-color: #3a2559; }
+  width: 100%;
+  padding: 10px;
+  background-color: #4a316f;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  &:hover {
+    background-color: #3a2559;
+  }
 `;
-const Separator = styled.div` margin: 20px 0; font-size: 0.9rem; color: #666; `;
-const SocialButtons = styled.div` display: flex; flex-direction: column; `;
+const Separator = styled.div`
+  margin: 20px 0;
+  font-size: 0.9rem;
+  color: #666;
+`;
+const SocialButtons = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
 const SocialButton = styled.button`
-  width: 100%; padding: 10px; margin: 5px 0; border: none; border-radius: 5px; font-size: 1rem; cursor: pointer;
-  &.google { background-color: #dd4b39; color: #fff; }
-  &.facebook { background-color: #3b5998; color: #fff; }
-  &:hover { opacity: 0.9; }
+  width: 100%;
+  padding: 10px;
+  margin: 5px 0;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  &.google {
+    background-color: #dd4b39;
+    color: #fff;
+  }
+  &.facebook {
+    background-color: #3b5998;
+    color: #fff;
+  }
+  &:hover {
+    opacity: 0.9;
+  }
 `;
 const SignUpButton = styled.button`
-  margin-top: 20px; background: none; border: 1px solid #4a316f; color: #4a316f;
-  padding: 10px; border-radius: 5px; font-size: 1rem; cursor: pointer;
-  &:hover { background-color: #4a316f; color: #fff; }
+  margin-top: 20px;
+  background: none;
+  border: 1px solid #4a316f;
+  color: #4a316f;
+  padding: 10px;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  &:hover {
+    background-color: #4a316f;
+    color: #fff;
+  }
 `;
-const Message = styled.p` color: red; margin-top: 15px; `;
+const Message = styled.p`
+  color: red;
+  margin-top: 15px;
+`;
 const ForgotPasswordLink = styled.div`
-  margin-top: 10px; color: #4a316f; cursor: pointer; font-size: 0.9rem;
-  &:hover { text-decoration: underline; }
+  margin-top: 10px;
+  color: #4a316f;
+  cursor: pointer;
+  font-size: 0.9rem;
+  &:hover {
+    text-decoration: underline;
+  }
 `;

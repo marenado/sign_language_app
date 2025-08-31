@@ -1,34 +1,32 @@
-import React, { useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import api from "../services/api";
-import styled from "styled-components";
+import React, { useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import api from '../services/api';
+import styled from 'styled-components';
 
 const ResetPassword = () => {
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
- 
-const handleResetPassword = async (e) => {
+  const handleResetPassword = async (e) => {
     e.preventDefault();
-    const token = searchParams.get("token");
-  
+    const token = searchParams.get('token');
+
     try {
-       await api.post("/auth/reset-password", {
+      await api.post('/auth/reset-password', {
         token,
         new_password: password,
       });
-      setMessage("Password reset successfully! You will be now redirecred to the login page.");
+      setMessage('Password reset successfully! You will be now redirecred to the login page.');
       setError(false);
-      
-      // Redirect to the "/" page after a successful reset
+
       setTimeout(() => {
-        navigate("/");
+        navigate('/');
       }, 3000);
     } catch (err) {
-      setMessage(err.response?.data?.detail || "An error occurred while processing your request.");
+      setMessage(err.response?.data?.detail || 'An error occurred while processing your request.');
       setError(true);
     }
   };
@@ -48,11 +46,7 @@ const handleResetPassword = async (e) => {
         {message && (
           <Message isError={error}>
             {message}
-            {error && (
-              <BackToLogin onClick={() => navigate("/")}>
-                Go Back to Login
-              </BackToLogin>
-            )}
+            {error && <BackToLogin onClick={() => navigate('/')}>Go Back to Login</BackToLogin>}
           </Message>
         )}
       </Form>
@@ -115,7 +109,7 @@ const Button = styled.button`
 `;
 
 const Message = styled.p`
-  color: ${(props) => (props.isError ? "red" : "green")};
+  color: ${(props) => (props.isError ? 'red' : 'green')};
   margin-top: 10px;
   font-size: 0.9rem;
 `;

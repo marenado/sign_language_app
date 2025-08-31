@@ -1,7 +1,7 @@
-import axios from "axios";
+import axios from 'axios';
 
 const api = axios.create({
-  baseURL: "https://signlearn.onrender.com",
+  baseURL: 'https://signlearn.onrender.com',
   withCredentials: true,
 });
 
@@ -12,24 +12,26 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const status = error.response?.status;
-    const url = original?.url || "";
+    const url = original?.url || '';
 
     const isAuthRoute =
-      url.includes("/auth/refresh") || url.includes("/auth/login") ||
-      url.includes("/auth/google")  || url.includes("/auth/facebook");
+      url.includes('/auth/refresh') ||
+      url.includes('/auth/login') ||
+      url.includes('/auth/google') ||
+      url.includes('/auth/facebook');
 
     if (status === 401 && !original._retry && !isAuthRoute) {
       original._retry = true;
       if (!triedRefreshOnce) {
         triedRefreshOnce = true;
         try {
-          await api.post("/auth/refresh");
-          return api(original); // retry once
-        } catch (_) { /* not logged in → fall through */ }
+          await api.post('/auth/refresh');
+          return api(original);
+        } catch (_) {}
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

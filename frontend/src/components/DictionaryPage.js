@@ -1,20 +1,18 @@
-import React, { useState, useEffect } from "react";
-import styled from "styled-components";
-import Sidebar from "../components/Sidebar";
-import api from "../services/api";
-import { Search as SearchIcon } from "@mui/icons-material"; // Material-UI Icon for the magnifying glass
-
-
+import React, { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import Sidebar from '../components/Sidebar';
+import api from '../services/api';
+import { Search as SearchIcon } from '@mui/icons-material';
 
 const DictionaryPage = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [alphabetFilter, setAlphabetFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [alphabetFilter, setAlphabetFilter] = useState('');
   const [dictionaryItems, setDictionaryItems] = useState([]);
-  const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState('');
   const [languages, setLanguages] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchLanguages();
@@ -28,12 +26,11 @@ const DictionaryPage = () => {
 
   const fetchLanguages = async () => {
     try {
-      const response = await api.get("/dictionary/languages");
+      const response = await api.get('/dictionary/languages');
       setLanguages(response.data);
-      setSelectedLanguage(response.data[0]); // Default to the first language
+      setSelectedLanguage(response.data[0]);
     } catch (err) {
-      // console.error("Failed to fetch languages:", err);
-      setError("Failed to load languages.");
+      setError('Failed to load languages.');
     }
   };
 
@@ -41,13 +38,12 @@ const DictionaryPage = () => {
     try {
       setLoading(true);
       const response = await api.get(`/dictionary?language=${language}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` },
       });
       setDictionaryItems(response.data);
-      setError("");
+      setError('');
     } catch (err) {
-      // console.error("Failed to fetch dictionary items:", err);
-      setError("Failed to load dictionary. Please try again.");
+      setError('Failed to load dictionary. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -67,78 +63,75 @@ const DictionaryPage = () => {
     <PageContainer>
       <Sidebar />
       <Content>
-      <Header>
-  <TopControls>
-    <LanguageSelector
-      value={selectedLanguage}
-      onChange={(e) => setSelectedLanguage(e.target.value)}
-    >
-      {languages.map((lang) => (
-        <option key={lang} value={lang}>
-          {lang}
-        </option>
-      ))}
-    </LanguageSelector>
-    <SearchBarContainer>
-      <SearchBar
-        type="text"
-        placeholder="Search..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
-      <SearchIconWrapper>
-        <SearchIcon style={{ color: "#888" }} />
-      </SearchIconWrapper>
-    </SearchBarContainer>
-  </TopControls>
-  <AlphabetFilter>
-    {Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ").map((letter) => (
-      <Letter
-        key={letter}
-        selected={alphabetFilter === letter}
-        onClick={() =>
-          setAlphabetFilter(letter === alphabetFilter ? "" : letter)
-        }
-      >
-        {letter}
-      </Letter>
-    ))}
-  </AlphabetFilter>
-</Header>
+        <Header>
+          <TopControls>
+            <LanguageSelector
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+            >
+              {languages.map((lang) => (
+                <option key={lang} value={lang}>
+                  {lang}
+                </option>
+              ))}
+            </LanguageSelector>
+            <SearchBarContainer>
+              <SearchBar
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <SearchIconWrapper>
+                <SearchIcon style={{ color: '#888' }} />
+              </SearchIconWrapper>
+            </SearchBarContainer>
+          </TopControls>
+          <AlphabetFilter>
+            {Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ').map((letter) => (
+              <Letter
+                key={letter}
+                selected={alphabetFilter === letter}
+                onClick={() => setAlphabetFilter(letter === alphabetFilter ? '' : letter)}
+              >
+                {letter}
+              </Letter>
+            ))}
+          </AlphabetFilter>
+        </Header>
 
-{loading ? (
-  <Message>Loading...</Message>
-) : error ? (
-  <Message>{error}</Message>
-) : filteredItems.length === 0 ? (
-  <Message>Sorry, no content available for the selected language.</Message>
-) : (
-  <ContentContainer>
-    <DictionaryList>
-      {filteredItems.map((item) => (
-        <DictionaryItem
-          key={item.gloss}
-          onClick={() => setSelectedItem(item)}
-          selected={selectedItem?.gloss === item.gloss}
-        >
-          {item.gloss}
-        </DictionaryItem>
-      ))}
-    </DictionaryList>
-    {selectedItem && (
-      <VideoSection>
-        <WordTitle>{selectedItem.gloss}</WordTitle>
-        <VideoContainer>
-          <Video key={selectedItem.video_url} controls autoPlay loop>
-            <source src={selectedItem.video_url} type="video/mp4" />
-            Your browser does not support the video tag.
-          </Video>
-        </VideoContainer>
-      </VideoSection>
-    )}
-  </ContentContainer>
-)}
-
+        {loading ? (
+          <Message>Loading...</Message>
+        ) : error ? (
+          <Message>{error}</Message>
+        ) : filteredItems.length === 0 ? (
+          <Message>Sorry, no content available for the selected language.</Message>
+        ) : (
+          <ContentContainer>
+            <DictionaryList>
+              {filteredItems.map((item) => (
+                <DictionaryItem
+                  key={item.gloss}
+                  onClick={() => setSelectedItem(item)}
+                  selected={selectedItem?.gloss === item.gloss}
+                >
+                  {item.gloss}
+                </DictionaryItem>
+              ))}
+            </DictionaryList>
+            {selectedItem && (
+              <VideoSection>
+                <WordTitle>{selectedItem.gloss}</WordTitle>
+                <VideoContainer>
+                  <Video key={selectedItem.video_url} controls autoPlay loop>
+                    <source src={selectedItem.video_url} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </Video>
+                </VideoContainer>
+              </VideoSection>
+            )}
+          </ContentContainer>
+        )}
       </Content>
     </PageContainer>
   );
@@ -146,7 +139,6 @@ const DictionaryPage = () => {
 
 export default DictionaryPage;
 
-// Styled Components
 const PageContainer = styled.div`
   display: flex;
   height: 100vh; /* Ensure it takes the full viewport height */
@@ -169,14 +161,11 @@ const Header = styled.div`
   gap: 1rem; /* Add space between sections (dropdown+search and alphabet) */
 `;
 
-
-
 const SearchBarContainer = styled.div`
   position: relative;
   width: 100%;
   max-width: 500px;
 `;
-
 
 const SearchBar = styled.input`
   width: 100%;
@@ -209,8 +198,6 @@ const TopControls = styled.div`
   gap: 1rem; /* Add space between dropdown and search bar */
 `;
 
-
-
 const AlphabetFilter = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -219,8 +206,8 @@ const AlphabetFilter = styled.div`
 `;
 
 const Letter = styled.button`
-  background-color: ${(props) => (props.selected ? "#6c63ff" : "#e0e0e0")};
-  color: ${(props) => (props.selected ? "#fff" : "#333")};
+  background-color: ${(props) => (props.selected ? '#6c63ff' : '#e0e0e0')};
+  color: ${(props) => (props.selected ? '#fff' : '#333')};
   border: none;
   padding: 0.5rem;
   margin: 0.2rem;
@@ -230,7 +217,7 @@ const Letter = styled.button`
   cursor: pointer;
 
   &:hover {
-    background-color: ${(props) => (props.selected ? "#4a47d6" : "#d6d6d6")};
+    background-color: ${(props) => (props.selected ? '#4a47d6' : '#d6d6d6')};
   }
 `;
 
@@ -253,14 +240,14 @@ const DictionaryList = styled.div`
 const DictionaryItem = styled.div`
   padding: 0.5rem 1rem;
   border-radius: 5px;
-  background-color: ${(props) => (props.selected ? "#6c63ff" : "#f9f9f9")};
-  color: ${(props) => (props.selected ? "#fff" : "#333")};
+  background-color: ${(props) => (props.selected ? '#6c63ff' : '#f9f9f9')};
+  color: ${(props) => (props.selected ? '#fff' : '#333')};
   margin-bottom: 0.5rem;
   cursor: pointer;
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: ${(props) => (props.selected ? "#4a47d6" : "#e0e0e0")};
+    background-color: ${(props) => (props.selected ? '#4a47d6' : '#e0e0e0')};
   }
 `;
 
@@ -276,7 +263,6 @@ const WordTitle = styled.h1`
   margin-bottom: 1rem;
   color: #333;
 `;
-
 
 const VideoContainer = styled.div`
   max-width: 500px; /* Fixed max width */

@@ -1,51 +1,49 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import styled from "styled-components";
-import api from "../services/api"; 
-import Sidebar from "../components/Sidebar";
-import { FaCheckCircle } from "react-icons/fa";
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import styled from 'styled-components';
+import api from '../services/api';
+import Sidebar from '../components/Sidebar';
+import { FaCheckCircle } from 'react-icons/fa';
 
 const ModulesPage = () => {
   const [languages, setLanguages] = useState([]);
-  const [language, setLanguage] = useState("1"); // Default language ID
+  const [language, setLanguage] = useState('1');
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   // Fetch languages
   const fetchLanguages = async () => {
     try {
-      const { data } = await api.get("/users/languages");
+      const { data } = await api.get('/users/languages');
       setLanguages(data || []);
       if ((data || []).length > 0) {
-        setLanguage(String(data[0].id)); // pick first language as default
+        setLanguage(String(data[0].id));
       }
     } catch (err) {
-      console.error("Failed to fetch languages:", err);
-      setError("Failed to load languages.");
+      console.error('Failed to fetch languages:', err);
+      setError('Failed to load languages.');
       setLoading(false);
     }
   };
 
-  // Fetch modules
   const fetchModules = async (languageId) => {
     if (!languageId) return;
     setLoading(true);
     try {
-      const { data } = await api.get("/users/modules", {
+      const { data } = await api.get('/users/modules', {
         params: { language_id: languageId },
       });
       setModules(data || []);
-      setError("");
+      setError('');
     } catch (err) {
-      console.error("Failed to fetch modules:", err);
-      // If backend sent 401 because cookie missing/expired, send to login
+      console.error('Failed to fetch modules:', err);
       if (err?.response?.status === 401) {
-        navigate("/login");
+        navigate('/login');
         return;
       }
-      setError("Failed to fetch modules. Please try again.");
+      setError('Failed to fetch modules. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -65,25 +63,23 @@ const ModulesPage = () => {
 
   const handleLessonClick = async (lessonId) => {
     try {
-      // cookie-auth protected call
       const { data: tasks } = await api.get(`/users/lessons/${lessonId}/tasks`);
       if (tasks && tasks.length > 0) {
         navigate(`/lessons/${lessonId}/tasks/${tasks[0].task_id}`);
       } else {
-        alert("No tasks available for this lesson.");
+        alert('No tasks available for this lesson.');
       }
     } catch (err) {
-      console.error("Failed to fetch tasks:", err);
+      console.error('Failed to fetch tasks:', err);
       if (err?.response?.status === 401) {
-        navigate("/login");
+        navigate('/login');
         return;
       }
-      alert("Failed to load tasks.");
+      alert('Failed to load tasks.');
     }
   };
 
   return (
-    
     <PageContainer>
       <Sidebar />
       <Content>
@@ -108,12 +104,9 @@ const ModulesPage = () => {
                 <ModuleHeader>
                   <ModuleTitle>{module.title}</ModuleTitle>
                   <ModuleStatus>
-                    {module.lessons_completed}/{module.total_lessons} Lessons
-                    Completed
+                    {module.lessons_completed}/{module.total_lessons} Lessons Completed
                   </ModuleStatus>
-                  <CompletionIcon
-                    completed={module.status === "completed" ? "true" : undefined}
-                  >
+                  <CompletionIcon completed={module.status === 'completed' ? 'true' : undefined}>
                     <FaCheckCircle />
                   </CompletionIcon>
                 </ModuleHeader>
@@ -123,17 +116,15 @@ const ModulesPage = () => {
                       <LessonCard
                         key={lesson.id}
                         status={lesson.status}
-                        onClick={() =>
-                          lesson.status !== "locked" && handleLessonClick(lesson.id)
-                        }
+                        onClick={() => lesson.status !== 'locked' && handleLessonClick(lesson.id)}
                       >
                         <LessonTitle>{lesson.title}</LessonTitle>
                         <LessonStatus>
-                          {lesson.status === "completed"
+                          {lesson.status === 'completed'
                             ? `${lesson.earned_points || 0}/${lesson.total_points || 0} Points`
-                            : lesson.status === "in-progress"
-                            ? `In Progress (${lesson.earned_points || 0}/${lesson.total_points || 0} Points)`
-                            : "Locked"}
+                            : lesson.status === 'in-progress'
+                              ? `In Progress (${lesson.earned_points || 0}/${lesson.total_points || 0} Points)`
+                              : 'Locked'}
                         </LessonStatus>
                       </LessonCard>
                     ))
@@ -152,7 +143,6 @@ const ModulesPage = () => {
 
 export default ModulesPage;
 
-// Styled Components
 const PageContainer = styled.div`
   display: flex;
   height: 100vh;
@@ -163,8 +153,7 @@ const Content = styled.div`
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
-  background: "linear-gradient(to bottom, white, #E6DFFF)",
-
+  background: 'linear-gradient(to bottom, white, #E6DFFF)';
 `;
 
 const Header = styled.div`
@@ -186,9 +175,7 @@ const ModulesList = styled.div`
 
 const ModuleContainer = styled.div`
   background-color: ${({ status }) =>
-    status === "completed" || status === "in-progress"
-      ? "#c7adf0"
-      : "#d1d5db"};
+    status === 'completed' || status === 'in-progress' ? '#c7adf0' : '#d1d5db'};
   border-radius: 10px;
   padding: 1.5rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -212,7 +199,7 @@ const ModuleStatus = styled.div`
 `;
 
 const CompletionIcon = styled.div`
-  color: ${({ completed }) => (completed ? "#34d399" : "#ffffff")};
+  color: ${({ completed }) => (completed ? '#34d399' : '#ffffff')};
   font-size: 1.5rem;
 `;
 
@@ -224,18 +211,13 @@ const LessonsGrid = styled.div`
 
 const LessonCard = styled.div`
   background-color: ${({ status }) =>
-    status === "completed"
-      ? "#34d399"
-      : status === "in-progress"
-      ? "#86efac"
-      : "#9ca3af"};
+    status === 'completed' ? '#34d399' : status === 'in-progress' ? '#86efac' : '#9ca3af'};
   padding: 1rem;
   border-radius: 8px;
   text-align: center;
-  color: ${({ status }) =>
-    status === "locked" ? "#6b7280" : "#065f46"};
+  color: ${({ status }) => (status === 'locked' ? '#6b7280' : '#065f46')};
   font-weight: bold;
-  cursor: ${({ status }) => (status === "locked" ? "not-allowed" : "pointer")};
+  cursor: ${({ status }) => (status === 'locked' ? 'not-allowed' : 'pointer')};
 `;
 
 const LessonTitle = styled.h4`

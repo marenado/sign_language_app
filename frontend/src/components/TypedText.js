@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 
 const TypedText = ({ text, speed }) => {
-  const [displayedText, setDisplayedText] = useState("");
+  const [displayedText, setDisplayedText] = useState('');
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -18,15 +18,15 @@ const TypedText = ({ text, speed }) => {
   return (
     <div
       style={{
-        height: "6em",
-        lineHeight: "1.5em",
-        overflow: "hidden", 
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-start", 
+        height: '6em',
+        lineHeight: '1.5em',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
       }}
     >
-      <span style={{ whiteSpace: "pre-wrap" }}>{displayedText}</span>
+      <span style={{ whiteSpace: 'pre-wrap' }}>{displayedText}</span>
     </div>
   );
 };
