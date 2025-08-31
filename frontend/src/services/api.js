@@ -24,8 +24,10 @@ api.interceptors.response.use(
       url.includes('/auth/google') ||
       url.includes('/auth/facebook');
 
+    const skipRefresh = original?.headers?.['x-skip-refresh'] === '1';
+
     
-    if (status === 401 && !original._retry && !isAuthRoute) {
+    if (status === 401 && !original._retry && !isAuthRoute && !skipRefresh) {
       original._retry = true;
       try {
         await api.post('/auth/refresh');    

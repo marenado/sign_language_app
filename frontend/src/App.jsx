@@ -66,7 +66,7 @@ const PostAuth = () => {
     let alive = true;
     (async () => {
       try {
-        const { data } = await api.get('/auth/me');
+        const { data } = await api.get('/auth/me', { headers: { 'x-skip-refresh': '1' } });
         if (!alive) return;
         const isAdmin = readIsAdmin(data);
 
@@ -95,6 +95,8 @@ const Login = ({ onLoggedIn }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setMessage('');
+    try { await api.post('/auth/logout'); } catch {}
+
     try {
       await api.post('/auth/login', { email, password });
       navigate('/post-auth', { replace: true });
@@ -184,7 +186,7 @@ const App = () => {
     let alive = true;
     (async () => {
       try {
-        const { data } = await api.get('/auth/me');
+        const { data } = await api.get('/auth/me', { headers: { 'x-skip-refresh': '1' } });
         if (!alive) return;
         setAuth({
           ready: true,
