@@ -4,10 +4,13 @@ from app.database import get_db
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.models.user import User
 from dotenv import load_dotenv
+from fastapi import Response
 import os
 from jose import jwt, JWTError
+from itsdangerous import BadSignature
 from jose.exceptions import ExpiredSignatureError
 import requests
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.exc import IntegrityError
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
 from app.schemas.auth import LoginRequest, SignupRequest
@@ -17,6 +20,8 @@ from app.utils.auth import (
     hash_password,
     create_refresh_token,
 )
+from fastapi import Cookie
+from fastapi import Header
 from sqlalchemy.future import select
 from app.schemas.auth import EmailValidationRequest
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
@@ -26,6 +31,9 @@ import logging
 from app.utils.auth import validate_password
 
 from pydantic import BaseModel
+from itsdangerous import URLSafeTimedSerializer
+import asyncio
+import random
 
 
 load_dotenv()
@@ -89,33 +97,23 @@ conf = ConnectionConfig(
 
 serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY", "default_secret_key"))
 
-from fastapi import Response
 
 ACCESS_COOKIE_NAME = "sl_access"
 REFRESH_COOKIE_NAME = "sl_refresh"
 
 
-def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
-    _set_cookie_partitioned(
-        response, ACCESS_COOKIE_NAME, access_token, path="/", max_age=60 * 60
-    )  
-    _set_cookie_partitioned(
-        response,
-        REFRESH_COOKIE_NAME,
-        refresh_token,
-        path="/auth/refresh",
-        max_age=60 * 60 * 24 * 7,
-    )
-
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str, *, partitioned: bool = True):
+    _set_cookie(response, ACCESS_COOKIE_NAME, access_token, path="/", max_age=60 * 60, partitioned=partitioned)
+    _set_cookie(response, REFRESH_COOKIE_NAME, refresh_token, path="/auth/refresh", max_age=60 * 60 * 24 * 7, partitioned=partitioned)
 
 def clear_auth_cookies(response: Response):
-    _clear_cookie_partitioned(response, ACCESS_COOKIE_NAME, path="/")
-    _clear_cookie_partitioned(response, REFRESH_COOKIE_NAME, path="/auth/refresh")
+    # clear both variants (partitioned and non-partitioned), in case either exists
+    _clear_cookie(response, ACCESS_COOKIE_NAME, path="/", partitioned=True)
+    _clear_cookie(response, ACCESS_COOKIE_NAME, path="/", partitioned=False)
+    _clear_cookie(response, REFRESH_COOKIE_NAME, path="/auth/refresh", partitioned=True)
+    _clear_cookie(response, REFRESH_COOKIE_NAME, path="/auth/refresh", partitioned=False)
 
-
-def _set_cookie_partitioned(
-    response, key, value, *, path="/", max_age: int | None = None
-):
+def _set_cookie(response: Response, key: str, value: str, *, path: str = "/", max_age: int | None = None, partitioned: bool = True):
     value = (value or "").replace("\r", "").replace("\n", "")
     parts = [
         f"{key}={value}",
@@ -123,24 +121,27 @@ def _set_cookie_partitioned(
         "Secure",
         "HttpOnly",
         "SameSite=None",
-        "Partitioned",
     ]
+    if partitioned:
+        parts.append("Partitioned")
     if max_age is not None:
         parts.append(f"Max-Age={int(max_age)}")
     response.headers.append("Set-Cookie", "; ".join(parts))
 
 
-def _clear_cookie_partitioned(response, key, *, path="/"):
+def _clear_cookie(response: Response, key: str, *, path: str = "/", partitioned: bool = True):
     parts = [
         f"{key}=deleted",
         f"Path={path}",
         "Secure",
         "HttpOnly",
         "SameSite=None",
-        "Partitioned",
         "Max-Age=0",
     ]
+    if partitioned:
+        parts.append("Partitioned")
     response.headers.append("Set-Cookie", "; ".join(parts))
+
 
 
 oauth = OAuth()
@@ -176,42 +177,43 @@ async def facebook_login(request: Request):
 async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         token = await oauth.facebook.authorize_access_token(request)
-        access_token = token["access_token"]
+        access_token_fb = token["access_token"]
 
         user_info_response = await oauth.facebook.get(
             "https://graph.facebook.com/me?fields=id,name,email",
-            token={"access_token": access_token},
+            token={"access_token": access_token_fb},
         )
         user_info = user_info_response.json()
-
         email = user_info.get("email")
         name = user_info.get("name")
 
         if not email:
-            raise HTTPException(
-                status_code=400, detail="Facebook did not return an email address"
-            )
+            raise HTTPException(status_code=400, detail="Facebook did not return an email address")
 
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
-
         if not user:
-            user = User(email=email, username=name, password="", is_verified=True)
+            user = User(email=email, username=name or email.split("@")[0], password="", is_verified=True)
             db.add(user)
             await db.commit()
+            await db.refresh(user)
 
-        access_token = create_access_token({"sub": email, "is_admin": user.is_admin})
+        is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
-        return RedirectResponse(f"{FRONTEND_URL}/?token={access_token}")
-
-    except HTTPException as http_err:
-        logging.error(f"HTTP Exception in Facebook Callback: {str(http_err)}")
-        raise http_err
-    except Exception as e:
-        logging.error(f"Unexpected error in Facebook Callback: {str(e)}", exc_info=True)
+        # Set httpOnly cookies (no Partitioned) and bounce to frontend
+        resp = RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/post-auth", status_code=302)
+        access_token = create_access_token({"sub": email, "is_admin": is_admin})
+        refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
+        set_auth_cookies(resp, access_token, refresh_token, partitioned=False)
+        return resp
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception("Unexpected error in Facebook callback")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     finally:
         await db.close()
+
 
 
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
@@ -270,7 +272,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
         access_token = create_access_token({"sub": email, "is_admin": is_admin})
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
-        set_auth_cookies(resp, access_token, refresh_token)
+        set_auth_cookies(resp, access_token, refresh_token, partitioned=False)
 
         return resp
 
@@ -388,9 +390,7 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
         await db.close()
 
 
-from itsdangerous import URLSafeTimedSerializer
-import asyncio
-import random
+
 
 
 @router.post("/forgot-password")
@@ -448,7 +448,6 @@ async def forgot_password(
         await db.close()
 
 
-from itsdangerous import BadSignature
 
 
 @router.get("/verify-email", response_class=HTMLResponse)
@@ -639,7 +638,7 @@ async def reset_password(
         await db.close()
 
 
-from pydantic import BaseModel, EmailStr
+
 
 
 class CheckEmailRequest(BaseModel):
@@ -671,9 +670,6 @@ async def logout(response: Response):
     return {"message": "logged out"}
 
 
-from fastapi import Cookie
-
-from fastapi import Header
 
 
 @router.get("/me")
