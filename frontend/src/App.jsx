@@ -8,19 +8,19 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import TypedText from './components/TypedText';
 
-import SignUp from './components/SignUp';
-import DictionaryPage from './components/DictionaryPage';
-import TasksPage from './components/TasksPage';
-import Dashboard from './components/Dashboard';
-import TaskList from './components/TaskList';
-import Settings from './components/Settings';
-import EmailVerified from './components/EmailVerified';
-import ModulePage from './components/ModulePage';
-import ForgotPassword from './components/ForgotPassword';
-import ResetPassword from './components/ResetPassword';
-import ModuleManagement from './components/ModuleManagement';
+import TypedText from './components/TypedText.jsx';
+import SignUp from './components/SignUp.jsx';
+import DictionaryPage from './components/DictionaryPage.jsx';
+import TasksPage from './components/TasksPage.jsx';
+import Dashboard from './components/Dashboard.jsx';
+import TaskList from './components/TaskList.jsx';
+import Settings from './components/Settings.jsx';
+import EmailVerified from './components/EmailVerified.jsx';
+import ModulePage from './components/ModulePage.jsx';
+import ForgotPassword from './components/ForgotPassword.jsx';
+import ResetPassword from './components/ResetPassword.jsx';
+import ModuleManagement from './components/ModuleManagement.jsx';
 import api from './services/api';
 
 export const AuthContext = createContext({
@@ -29,14 +29,20 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
+// robust normalizer
+const normalizeIsAdmin = (v) => {
+  if (v === true || v === 1) return true;
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase();
+    return s === 'true' || s === '1';
+  }
+  return false;
+};
 
-const normalizeIsAdmin = (v) =>
-  v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
-
-
-const API_BASE = (
-  import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com'
-).replace(/\/$/, '');
+const API_BASE = (import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com').replace(
+  /\/$/,
+  '',
+);
 
 const buildOAuthUrl = (provider) => {
   const url = new URL(`${API_BASE}/auth/${provider}/login`);
@@ -52,6 +58,7 @@ const Login = ({ onLoggedIn, autoCheck = false }) => {
   const location = useLocation();
   const doCheck = autoCheck || new URLSearchParams(location.search).get('auto') === '1';
 
+  // optional auto-check if you link to "/?auto=1"
   useEffect(() => {
     if (!doCheck) return;
     let alive = true;
@@ -59,9 +66,12 @@ const Login = ({ onLoggedIn, autoCheck = false }) => {
       try {
         const { data } = await api.get('/auth/me');
         if (!alive) return;
-        onLoggedIn(!!data.is_admin);
-        navigate(data.is_admin ? '/admin/modules' : '/dashboard', { replace: true });
-      } catch {}
+        const isAdmin = normalizeIsAdmin(data?.is_admin);
+        onLoggedIn(isAdmin);
+        navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
+      } catch {
+        // stay on login page silently
+      }
     })();
     return () => {
       alive = false;
@@ -69,29 +79,26 @@ const Login = ({ onLoggedIn, autoCheck = false }) => {
   }, [doCheck, navigate, onLoggedIn]);
 
   const handleLogin = async (e) => {
-  e.preventDefault();
-  setMessage('');
-  try {
-    await api.post('/auth/login', { email, password });
-    const { data } = await api.get('/auth/me');
-
-    const isAdmin = normalizeIsAdmin(data?.is_admin);
-    onLoggedIn(isAdmin);
-    navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
-  } catch (error) {
-    console.error('Login error:', error.response?.data?.detail || error.message);
-    setMessage('Invalid email or password. Please try again.');
-  }
-};
-
+    e.preventDefault();
+    setMessage('');
+    try {
+      await api.post('/auth/login', { email, password });
+      const { data } = await api.get('/auth/me');
+      const isAdmin = normalizeIsAdmin(data?.is_admin);
+      onLoggedIn(isAdmin);
+      navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
+    } catch (error) {
+      console.error('Login error:', error.response?.data?.detail || error.message);
+      setMessage('Invalid email or password. Please try again.');
+    }
+  };
 
   const handleGoogleLogin = () => {
-   window.location.href = 'https://signlearn.onrender.com/auth/google/login';
-};
-
-const handleFacebookLogin = () => {
-  window.location.replace(buildOAuthUrl('facebook'));
-};
+    window.location.replace(buildOAuthUrl('google'));
+  };
+  const handleFacebookLogin = () => {
+    window.location.replace(buildOAuthUrl('facebook'));
+  };
 
   return (
     <Container>
@@ -170,7 +177,11 @@ const App = () => {
       try {
         const { data } = await api.get('/auth/me');
         if (!alive) return;
-        setAuth({ ready: true, authenticated: true, isAdmin: !!data.is_admin });
+        setAuth({
+          ready: true,
+          authenticated: true,
+          isAdmin: normalizeIsAdmin(data?.is_admin),
+        });
       } catch {
         if (!alive) return;
         setAuth({ ready: true, authenticated: false, isAdmin: false });
@@ -194,7 +205,12 @@ const App = () => {
     <AuthContext.Provider value={{ auth, setAuth, logout }}>
       <Router>
         <Routes>
-          {/* Welcome page lives at "/" */}
+          {/* If a non-admin hits any /admin/* path, bounce them away */}
+          {auth.authenticated && !auth.isAdmin && (
+            <Route path="/admin/*" element={<Navigate to="/dashboard" replace />} />
+          )}
+
+          {/* Welcome / login */}
           <Route
             path="/"
             element={
@@ -204,6 +220,7 @@ const App = () => {
               />
             }
           />
+
           {/* Public auth pages */}
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailVerified />} />
@@ -262,7 +279,7 @@ const App = () => {
             }
           />
 
-          {/* Shared (must be signed in) */}
+          {/* Shared (signed-in) */}
           <Route
             path="/lessons/:lessonId/tasks/:taskId"
             element={
@@ -290,6 +307,7 @@ const App = () => {
 
 export default App;
 
+/* ——— styles ——— */
 const Container = styled.div`
   display: flex;
   height: 100vh;
