@@ -54,6 +54,8 @@ const buildOAuthUrl = (provider) => {
 // After login (email+pwd or OAuth) we come here and choose destination
 const PostAuth = () => {
   const navigate = useNavigate();
+  const { setAuth } = useContext(AuthContext);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -61,15 +63,20 @@ const PostAuth = () => {
         const { data } = await api.get('/auth/me');
         if (!alive) return;
         const isAdmin = normalizeIsAdmin(data?.is_admin);
+
+        // <- IMPORTANT: set the auth context so guards have the correct value
+        setAuth({ ready: true, authenticated: true, isAdmin });
+
         navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
       } catch {
+        // clear auth if anything failed
+        setAuth({ ready: true, authenticated: false, isAdmin: false });
         navigate('/', { replace: true });
       }
     })();
-    return () => {
-      alive = false;
-    };
-  }, [navigate]);
+    return () => (alive = false);
+  }, [navigate, setAuth]);
+
   return <div>Signing you in…</div>;
 };
 
