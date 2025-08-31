@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.sql import text
 from sqlalchemy import delete
 from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional, List
@@ -31,11 +30,10 @@ from app.utils.auth import require_admin, get_current_user_cookie, hash_password
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
-    dependencies=[Depends(require_admin)],  # <- apply to all routes here
+    dependencies=[Depends(require_admin)],
 )
 
 
-# Fetch menu options based on user role
 @router.get("/menu-options")
 async def get_menu_options(current_user: User = Depends(get_current_user_cookie)):
     """
@@ -59,7 +57,6 @@ async def create_module(
     """
     logging.info(f"Creating module with data: {module.dict()}")
 
-    # Validate the language ID
     result = await db.execute(select(Language).where(Language.id == module.language_id))
     language = result.scalar()
     if not language:
@@ -86,7 +83,7 @@ async def create_module(
 
 @router.get("/modules", response_model=List[ModuleResponse])
 async def get_modules(
-    language_id: Optional[int] = None,  # Optional language filter
+    language_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
@@ -96,7 +93,7 @@ async def get_modules(
     try:
         query = select(Module).where(Module.created_by == current_admin.user_id)
         if language_id:
-            query = query.where(Module.language_id == language_id)  # Filter by language ID
+            query = query.where(Module.language_id == language_id)
 
         result = await db.execute(query)
         modules = result.scalars().all()
@@ -108,7 +105,8 @@ async def get_modules(
 
 
 from fastapi import Response, status
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, update
+
 
 @router.delete("/modules/{module_id}", status_code=204)
 async def delete_module(
@@ -116,34 +114,30 @@ async def delete_module(
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    # 1) Load module and authz
     result = await db.execute(select(Module).where(Module.module_id == module_id))
     module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(status_code=404, detail="Module not found.")
     if module.created_by != current_admin.user_id:
-        raise HTTPException(status_code=403, detail="You are not authorized to delete this module.")
+        raise HTTPException(
+            status_code=403, detail="You are not authorized to delete this module."
+        )
 
     try:
-        # 2) Subqueries for children
         lesson_ids_sq = select(Lesson.lesson_id).where(Lesson.module_id == module_id)
-        task_ids_sq   = select(Task.task_id).where(Task.lesson_id.in_(lesson_ids_sq))
+        task_ids_sq = select(Task.task_id).where(Task.lesson_id.in_(lesson_ids_sq))
 
-        # 3) Delete link tables first
         await db.execute(delete(TaskVideo).where(TaskVideo.task_id.in_(task_ids_sq)))
 
-        # 4) Delete tasks, then lessons
         await db.execute(delete(Task).where(Task.task_id.in_(task_ids_sq)))
         await db.execute(delete(Lesson).where(Lesson.lesson_id.in_(lesson_ids_sq)))
 
-        # 5) Clear prerequisite references in other modules
         await db.execute(
             update(Module)
             .where(Module.prerequisite_mod == module_id)
             .values(prerequisite_mod=None)
         )
 
-        # 6) Delete the module itself
         await db.execute(delete(Module).where(Module.module_id == module_id))
         await db.commit()
 
@@ -152,8 +146,6 @@ async def delete_module(
         await db.rollback()
         logging.error(f"Error deleting module {module_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to delete module")
-
-
 
 
 @router.put("/modules/{module_id}", response_model=ModuleResponse)
@@ -167,7 +159,6 @@ async def update_module(
     Update a module by ID and automatically increment the version
     """
     try:
-        # Fetch the module to update
         result = await db.execute(select(Module).where(Module.module_id == module_id))
         module = result.scalar()
 
@@ -175,22 +166,25 @@ async def update_module(
             raise HTTPException(status_code=404, detail="Module not found.")
 
         if module.created_by != current_admin.user_id:
-            raise HTTPException(status_code=403, detail="You are not authorized to update this module.")
+            raise HTTPException(
+                status_code=403, detail="You are not authorized to update this module."
+            )
 
-        # Validate language ID if updating it
         if updated_data.language_id:
-            language_result = await db.execute(select(Language).where(Language.id == updated_data.language_id))
+            language_result = await db.execute(
+                select(Language).where(Language.id == updated_data.language_id)
+            )
             if not language_result.scalar():
                 raise HTTPException(status_code=400, detail="Invalid language ID.")
 
-        # Update module fields
         module.title = updated_data.title or module.title
         module.description = updated_data.description or module.description
-        module.prerequisite_mod = updated_data.prerequisite_mod or module.prerequisite_mod
+        module.prerequisite_mod = (
+            updated_data.prerequisite_mod or module.prerequisite_mod
+        )
         module.modified_by = current_admin.user_id
         module.language_id = updated_data.language_id or module.language_id
 
-        # Automatically increment the version
         module.version += 1
 
         await db.commit()
@@ -224,8 +218,9 @@ async def add_language(language: LanguageCreate, db: AsyncSession = Depends(get_
     Add a new language
     """
     try:
-        # Check if the language already exists
-        existing_language = await db.execute(select(Language).where(Language.code == language.code))
+        existing_language = await db.execute(
+            select(Language).where(Language.code == language.code)
+        )
         if existing_language.scalars().first():
             raise HTTPException(status_code=400, detail="Language already exists.")
 
@@ -240,8 +235,6 @@ async def add_language(language: LanguageCreate, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=500, detail="Failed to add language")
 
 
-
-
 @router.post("/lessons", response_model=LessonResponse)
 async def create_lesson(
     lesson: LessonCreate,
@@ -251,16 +244,16 @@ async def create_lesson(
     """
     Create a new lesson. Automatically sets version to 1 if not provided.
     """
-    # Validate the module ID
-    result = await db.execute(select(Module).where(Module.module_id == lesson.module_id))
+
+    result = await db.execute(
+        select(Module).where(Module.module_id == lesson.module_id)
+    )
     module = result.scalar()
     if not module:
         raise HTTPException(status_code=400, detail="Invalid module ID.")
 
-    # Set default version to 1 if not provided
     version = lesson.version if lesson.version is not None else 1
 
-    # Create a new lesson
     new_lesson = Lesson(
         title=lesson.title,
         description=lesson.description,
@@ -280,7 +273,6 @@ async def create_lesson(
         await db.rollback()
         logging.error(f"Error creating lesson: {e}")
         raise HTTPException(status_code=500, detail="Failed to create lesson")
-
 
 
 @router.get("/lessons", response_model=List[LessonResponse])
@@ -323,21 +315,21 @@ async def update_lesson(
     Automatically increments the lesson version.
     Allows partial updates for other fields.
     """
-    # Fetch the existing lesson
+
     result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
     lesson = result.scalar()
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found.")
 
     try:
-        # Update only the fields provided in the request
         if updated_data.title:
             lesson.title = updated_data.title
         if updated_data.description:
             lesson.description = updated_data.description
         if updated_data.module_id:
-            # Validate the new module ID if provided
-            module_result = await db.execute(select(Module).where(Module.module_id == updated_data.module_id))
+            module_result = await db.execute(
+                select(Module).where(Module.module_id == updated_data.module_id)
+            )
             module = module_result.scalar()
             if not module:
                 raise HTTPException(status_code=400, detail="Invalid module ID.")
@@ -347,10 +339,8 @@ async def update_lesson(
         if updated_data.difficulty:
             lesson.difficulty = updated_data.difficulty
 
-        # Automatically increment the version
         lesson.version += 1
 
-        # Commit the updates to the database
         await db.commit()
         await db.refresh(lesson)
         logging.info(f"Lesson {lesson_id} updated successfully.")
@@ -361,28 +351,23 @@ async def update_lesson(
         raise HTTPException(status_code=500, detail="Failed to update lesson")
 
 
-
 @router.delete("/lessons/{lesson_id}", status_code=204)
 async def delete_lesson(
     lesson_id: int,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    # Ensure the lesson exists (and optionally check ownership via its module)
     result = await db.execute(select(Lesson).where(Lesson.lesson_id == lesson_id))
     lesson = result.scalar_one_or_none()
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found.")
 
     try:
-        # Gather this lesson's task ids
         task_ids_sq = select(Task.task_id).where(Task.lesson_id == lesson_id)
 
-        # Delete link rows then tasks
         await db.execute(delete(TaskVideo).where(TaskVideo.task_id.in_(task_ids_sq)))
         await db.execute(delete(Task).where(Task.lesson_id == lesson_id))
 
-        # Delete the lesson
         await db.execute(delete(Lesson).where(Lesson.lesson_id == lesson_id))
         await db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -392,7 +377,6 @@ async def delete_lesson(
         raise HTTPException(status_code=500, detail="Failed to delete lesson")
 
 
-    
 @router.post("/tasks", response_model=TaskResponse)
 async def create_task(
     task: TaskCreate,
@@ -402,13 +386,12 @@ async def create_task(
     """
     Create a new task with associated videos.
     """
-    # Validate lesson ID
+
     result = await db.execute(select(Lesson).where(Lesson.lesson_id == task.lesson_id))
     lesson = result.scalar()
     if not lesson:
         raise HTTPException(status_code=400, detail="Invalid lesson ID.")
 
-    # Validate video IDs
     if task.video_ids:
         videos_result = await db.execute(
             select(VideoReference).where(VideoReference.video_id.in_(task.video_ids))
@@ -419,7 +402,6 @@ async def create_task(
             raise HTTPException(status_code=400, detail="Invalid video IDs provided.")
 
     try:
-        # Create the new task
         new_task = Task(
             task_type=task.task_type,
             content=task.content,
@@ -432,7 +414,6 @@ async def create_task(
         await db.commit()
         await db.refresh(new_task)
 
-        # Associate videos
         for video_id in task.video_ids:
             task_video = TaskVideo(task_id=new_task.task_id, video_id=video_id)
             db.add(task_video)
@@ -440,9 +421,10 @@ async def create_task(
         await db.commit()
         await db.refresh(new_task)
 
-        # Fetch the task with related videos
         task_with_videos = await db.execute(
-            select(Task).options(selectinload(Task.videos)).where(Task.task_id == new_task.task_id)
+            select(Task)
+            .options(selectinload(Task.videos))
+            .where(Task.task_id == new_task.task_id)
         )
         task_with_videos = task_with_videos.scalar()
 
@@ -451,8 +433,6 @@ async def create_task(
     except Exception as e:
         logging.error(f"Error creating task: {e}")
         raise HTTPException(status_code=500, detail="Failed to create task")
-
-    
 
 
 @router.get("/tasks", response_model=List[TaskResponse])
@@ -465,11 +445,14 @@ async def get_tasks(
     Fetch all tasks for a specific lesson, including all linked videos.
     """
     try:
-        # Updated query with proper outer joins
         result = await db.execute(
             select(Task, VideoReference)
-            .join(TaskVideo, Task.task_id == TaskVideo.task_id, isouter=True)  # Allow tasks without videos
-            .join(VideoReference, TaskVideo.video_id == VideoReference.video_id, isouter=True)  # Allow tasks without videos in VideoReference
+            .join(TaskVideo, Task.task_id == TaskVideo.task_id, isouter=True)
+            .join(
+                VideoReference,
+                TaskVideo.video_id == VideoReference.video_id,
+                isouter=True,
+            )
             .where(Task.lesson_id == lesson_id)
         )
 
@@ -488,7 +471,6 @@ async def get_tasks(
                     "videos": [],
                 }
 
-            # Add video details if they exist
             if video:
                 tasks[task.task_id]["videos"].append(
                     {
@@ -498,7 +480,6 @@ async def get_tasks(
                     }
                 )
 
-        # Debugging logs for task serialization
         logging.debug(f"Serialized tasks: {list(tasks.values())}")
 
         return list(tasks.values())
@@ -506,8 +487,6 @@ async def get_tasks(
     except Exception as e:
         logging.error(f"Error fetching tasks: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch tasks")
-
-    
 
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
@@ -521,47 +500,41 @@ async def update_task(
     Update a task by ID, including its associated videos.
     """
     try:
-        # Fetch the task with its associated videos
         task_result = await db.execute(
-            select(Task)
-            .where(Task.task_id == task_id)
-            .options(joinedload(Task.videos))  # Eagerly load associated videos
+            select(Task).where(Task.task_id == task_id).options(joinedload(Task.videos))
         )
         task = task_result.scalar()
         if not task:
             raise HTTPException(status_code=404, detail="Task not found.")
 
-        # Update task fields
         task.task_type = updated_task.task_type or task.task_type
         task.content = updated_task.content or task.content
         task.correct_answer = updated_task.correct_answer or task.correct_answer
         task.version = updated_task.version or task.version
         task.points = updated_task.points or task.points
 
-        # Update associated videos if video_ids are provided
         if updated_task.video_ids:
-            # Validate provided video IDs
             valid_videos = await db.execute(
-                select(VideoReference).where(VideoReference.video_id.in_(updated_task.video_ids))
+                select(VideoReference).where(
+                    VideoReference.video_id.in_(updated_task.video_ids)
+                )
             )
             valid_video_ids = {video.video_id for video in valid_videos.scalars().all()}
 
             if set(updated_task.video_ids) - valid_video_ids:
-                raise HTTPException(status_code=400, detail="Some video IDs are invalid.")
+                raise HTTPException(
+                    status_code=400, detail="Some video IDs are invalid."
+                )
 
-            # Clear existing video associations
             await db.execute(delete(TaskVideo).where(TaskVideo.task_id == task_id))
 
-            # Add new video associations
             for video_id in updated_task.video_ids:
                 task_video = TaskVideo(task_id=task_id, video_id=video_id)
                 db.add(task_video)
 
-        # Commit the updates and refresh the task
         await db.commit()
         await db.refresh(task)
 
-        # Return the updated task with videos
         return task
     except SQLAlchemyError as e:
         logging.error(f"Database error while updating task: {e}")
@@ -571,21 +544,18 @@ async def update_task(
         raise HTTPException(status_code=500, detail="Failed to update task")
 
 
-
 @router.delete("/tasks/{task_id}", status_code=204)
 async def delete_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ):
-    # Ensure it exists
     result = await db.execute(select(Task).where(Task.task_id == task_id))
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 
     try:
-        # Remove link rows then the task
         await db.execute(delete(TaskVideo).where(TaskVideo.task_id == task_id))
         await db.execute(delete(Task).where(Task.task_id == task_id))
         await db.commit()
@@ -594,8 +564,6 @@ async def delete_task(
         await db.rollback()
         logging.exception("Error deleting task")
         raise HTTPException(status_code=500, detail="Failed to delete task")
-
-    
 
 
 @router.get("/tasks/video/{video_id}", response_model=List[TaskResponse])
@@ -608,18 +576,18 @@ async def get_tasks_by_video(
     Fetch all tasks linked to a specific video.
     """
     try:
-        # Fetch tasks associated with the given video_id
         result = await db.execute(
             select(Task)
-            .join(Task.videos)  # Join the videos relationship
+            .join(Task.videos)
             .where(VideoReference.video_id == video_id)
-            .options(joinedload(Task.videos))  # Eager load videos relationship
+            .options(joinedload(Task.videos))
         )
-        tasks = result.scalars().unique().all()  # Ensure uniqueness
+        tasks = result.scalars().unique().all()
         return tasks
     except Exception as e:
         logging.error(f"Error fetching tasks by video: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch tasks by video")
+
 
 @router.get("/videos", response_model=List[VideoReferenceResponse])
 async def search_videos(
@@ -630,14 +598,12 @@ async def search_videos(
 ):
     term = (query or search or "").strip()
     if not term:
-        return []  # or raise 400 if you prefer
+        return []
 
     result = await db.execute(
         select(VideoReference).where(VideoReference.gloss.ilike(f"%{term}%"))
     )
     return result.scalars().all()
-
-
 
 
 @router.get("/settings", response_model=UserResponse)
@@ -664,7 +630,6 @@ async def update_admin_settings(
     if not admin:
         raise HTTPException(status_code=404, detail="Admin not found")
 
-    # Update admin's settings
     if user_update.username:
         admin.username = user_update.username
     if user_update.email:

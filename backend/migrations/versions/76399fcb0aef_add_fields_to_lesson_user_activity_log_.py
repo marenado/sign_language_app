@@ -5,6 +5,7 @@ Revises: ecc668c4f221
 Create Date: 2024-12-30 23:07:55.445979
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -21,15 +22,25 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # Add new fields to `lesson` table
     op.add_column("lesson", sa.Column("duration", sa.Integer(), nullable=True))
-    op.add_column("lesson", sa.Column("difficulty", sa.String(length=20), nullable=True))
+    op.add_column(
+        "lesson", sa.Column("difficulty", sa.String(length=20), nullable=True)
+    )
 
     # Add new fields to `progress` table
     op.add_column("progress", sa.Column("time_spent", sa.Integer(), nullable=True))
-    op.add_column("progress", sa.Column("attempts", sa.Integer(), nullable=False, server_default="1"))
+    op.add_column(
+        "progress",
+        sa.Column("attempts", sa.Integer(), nullable=False, server_default="1"),
+    )
 
     # Add new fields to `user_activity_log` table
-    op.add_column("user_activity_log", sa.Column("duration", sa.Integer(), nullable=True))
-    op.add_column("user_activity_log", sa.Column("activity_type", sa.String(length=20), nullable=True))
+    op.add_column(
+        "user_activity_log", sa.Column("duration", sa.Integer(), nullable=True)
+    )
+    op.add_column(
+        "user_activity_log",
+        sa.Column("activity_type", sa.String(length=20), nullable=True),
+    )
 
 
 def downgrade() -> None:

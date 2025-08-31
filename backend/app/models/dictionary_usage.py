@@ -2,6 +2,7 @@ from app.database import Base
 
 from sqlalchemy import Column, Integer, TIMESTAMP, ForeignKey
 
+
 class DictionaryUsage(Base):
     __tablename__ = "dictionary_usage"
 

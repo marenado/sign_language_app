@@ -17,32 +17,28 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # ----- CORS -----
 FRONTEND_ORIGINS = [
-    "https://signlearn-2nxt.onrender.com",  # React static site (Render)
-    "http://localhost:5173",                # local dev (Vite)
+    "https://signlearn-2nxt.onrender.com",
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=FRONTEND_ORIGINS,   # MUST NOT be "*" when allow_credentials=True
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     max_age=86400,
 )
 
-# ----- Sessions -----
-# For cross-site requests (frontend domain != backend domain), cookies must be:
-# SameSite=None; Secure
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change_me")
 IS_PROD = os.getenv("ENV", "dev").lower() in {"prod", "production"}
 
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
-    same_site="none" if IS_PROD else "lax",   # set to "none" on Render
-    https_only=True if IS_PROD else False,     # True on Render (HTTPS)
-    # session_cookie="session",                # (optional) custom name
+    same_site="none" if IS_PROD else "lax",
+    https_only=True if IS_PROD else False,
 )
 
 # ----- Routers -----
@@ -56,6 +52,7 @@ app.include_router(achievements.router)
 media_directory = "media"
 os.makedirs(media_directory, exist_ok=True)
 app.mount("/media", StaticFiles(directory=media_directory), name="media")
+
 
 @app.get("/")
 def read_root():

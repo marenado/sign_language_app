@@ -9,7 +9,7 @@ conf = ConnectionConfig(
     MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),
     MAIL_SERVER=os.getenv("MAIL_SERVER"),
     MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "SignLearn"),
-    USE_CREDENTIALS=True
+    USE_CREDENTIALS=True,
 )
 
 
@@ -29,7 +29,7 @@ async def send_verification_email(email: str, token: str) -> bool:
         subject="Email Verification",
         recipients=[email],
         body=html_content,
-        subtype="html"
+        subtype="html",
     )
 
     fm = FastMail(conf)

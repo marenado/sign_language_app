@@ -1,7 +1,8 @@
 from app.database import Base
 
-from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.sql import func
+
 
 class User(Base):
     __tablename__ = "user"
@@ -13,8 +14,15 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     is_super_admin = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
-    temp_email = Column(String(254), unique=True, nullable=True)  
+    temp_email = Column(String(254), unique=True, nullable=True)
     points = Column(Integer, default=0)
     avatar = Column(String(255), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+        server_default=func.now(),
+        nullable=False,
+    )

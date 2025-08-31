@@ -1,6 +1,5 @@
 from app.database import Base
 from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
 
 
 class Module(Base):
@@ -13,5 +12,6 @@ class Module(Base):
     modified_by = Column(Integer, ForeignKey("user.user_id"), nullable=True)
     version = Column(Integer, nullable=False)
     prerequisite_mod = Column(Integer, ForeignKey("module.module_id"))
-    language_id = Column(Integer, ForeignKey("languages.id", ondelete="CASCADE"), nullable=False)
-
+    language_id = Column(
+        Integer, ForeignKey("languages.id", ondelete="CASCADE"), nullable=False
+    )

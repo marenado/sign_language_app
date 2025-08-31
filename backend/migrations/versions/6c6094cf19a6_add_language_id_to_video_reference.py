@@ -41,16 +41,18 @@ def upgrade() -> None:
     # Step 4: Add a foreign key constraint
     op.create_foreign_key(
         "fk_video_reference_language",  # Foreign key name
-        "video_reference",              # Source table
-        "languages",                    # Referenced table
-        ["language_id"],                # Source column
-        ["id"],                         # Referenced column
+        "video_reference",  # Source table
+        "languages",  # Referenced table
+        ["language_id"],  # Source column
+        ["id"],  # Referenced column
     )
 
 
 def downgrade() -> None:
     # Drop the foreign key constraint
-    op.drop_constraint("fk_video_reference_language", "video_reference", type_="foreignkey")
+    op.drop_constraint(
+        "fk_video_reference_language", "video_reference", type_="foreignkey"
+    )
 
     # Drop the `language_id` column
     op.drop_column("video_reference", "language_id")

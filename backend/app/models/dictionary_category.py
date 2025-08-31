@@ -2,6 +2,7 @@ from app.database import Base
 
 from sqlalchemy import Column, Integer, String
 
+
 class DictionaryCategory(Base):
     __tablename__ = "dictionary_category"
 

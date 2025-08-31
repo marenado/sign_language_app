@@ -2,6 +2,7 @@ from app.database import Base
 
 from sqlalchemy import Column, Integer, Boolean, TIMESTAMP, ForeignKey
 
+
 class ModuleProgress(Base):
     __tablename__ = "module_progress"
 

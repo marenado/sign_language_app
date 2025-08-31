@@ -1,7 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from pydantic import BaseModel
 from typing import Optional
-
 
 
 class UserCreate(BaseModel):
@@ -9,15 +7,17 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
+
 class UserResponse(BaseModel):
     user_id: int
     username: str
     email: EmailStr
     avatar: Optional[str]
 
+
 class Config:
-        from_attributes = True
-        orm_mode = True 
+    from_attributes = True
+    orm_mode = True
 
 
 class UserUpdate(BaseModel):
@@ -29,6 +29,7 @@ class UserUpdate(BaseModel):
 
 class PointsUpdateRequest(BaseModel):
     points: int
+
 
 class TaskCompletionRequest(BaseModel):
     points_earned: int

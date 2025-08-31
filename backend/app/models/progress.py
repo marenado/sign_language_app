@@ -1,6 +1,7 @@
 from app.database import Base
 from sqlalchemy import Column, Integer, Boolean, TIMESTAMP, ForeignKey, UniqueConstraint
 
+
 class Progress(Base):
     __tablename__ = "progress"
 
@@ -15,6 +16,4 @@ class Progress(Base):
     attempts = Column(Integer, default=1)
 
     # Add a unique constraint to enforce uniqueness on user_id and lesson_id
-    __table_args__ = (
-        UniqueConstraint("user_id", "lesson_id", name="uq_user_lesson"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "lesson_id", name="uq_user_lesson"),)

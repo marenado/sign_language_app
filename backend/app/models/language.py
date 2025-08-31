@@ -10,7 +10,4 @@ class Language(Base):
     code = Column(String(10), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
 
-
     videos = relationship("VideoReference", back_populates="language")
-
-

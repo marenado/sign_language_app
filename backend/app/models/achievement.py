@@ -2,6 +2,7 @@ from app.database import Base
 
 from sqlalchemy import Column, Integer, String
 
+
 class Achievement(Base):
     __tablename__ = "achievement"
 

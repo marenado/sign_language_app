@@ -2,6 +2,7 @@ from app.database import Base
 
 from sqlalchemy import Column, Integer, TIMESTAMP, ForeignKey
 
+
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempt"
 

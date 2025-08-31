@@ -5,6 +5,7 @@ Revises: c691a12c583c
 Create Date: 2024-12-18 18:10:20.789419
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,15 +13,22 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '02ddd304864e'
-down_revision: Union[str, None] = 'c691a12c583c'
+revision: str = "02ddd304864e"
+down_revision: Union[str, None] = "c691a12c583c"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('user', sa.Column('is_verified', sa.Boolean(), nullable=False, server_default=sa.sql.expression.false()))
-
+    op.add_column(
+        "user",
+        sa.Column(
+            "is_verified",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.sql.expression.false(),
+        ),
+    )
 
 
 def downgrade() -> None:

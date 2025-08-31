@@ -2,6 +2,7 @@ from app.database import Base
 
 from sqlalchemy import Column, Integer, String, ForeignKey
 
+
 class Lesson(Base):
     __tablename__ = "lesson"
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List, Optional, Dict
 
 
@@ -24,18 +24,16 @@ class TaskResponse(BaseModel):
 
     @staticmethod
     def process_videos(videos):
-        # Handle ORM objects and ensure video_url is a string
         return [
             VideoReferenceResponse(
                 video_id=video.video_id,
                 gloss=video.gloss,
                 signer_id=video.signer_id,
                 video_metadata=video.video_metadata,
-                video_url=video.video_url or ""  # Ensure video_url is not None
+                video_url=video.video_url or "",
             )
             for video in videos
         ]
 
     class Config:
-        orm_mode = True  # Enable ORM mode to map SQLAlchemy objects
-
+        orm_mode = True

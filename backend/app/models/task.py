@@ -2,6 +2,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey
 from app.database import Base
 
+
 class Task(Base):
     __tablename__ = "task"
 
@@ -17,5 +18,5 @@ class Task(Base):
     videos = relationship(
         "VideoReference",
         secondary="task_video",  # Association table
-        back_populates="tasks"
+        back_populates="tasks",
     )

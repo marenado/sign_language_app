@@ -3,72 +3,77 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.models.user import User
-from fastapi import APIRouter, HTTPException, Depends
 from dotenv import load_dotenv
 import os
 from jose import jwt, JWTError
 from jose.exceptions import ExpiredSignatureError
-from fastapi.responses import RedirectResponse
 import requests
 from sqlalchemy.exc import IntegrityError
 from app.schemas.auth import ForgotPasswordRequest, ResetPasswordRequest
-from app.schemas.auth import LoginRequest, TokenResponse, SignupRequest
-from app.utils.auth import verify_password, create_access_token, hash_password, create_refresh_token
+from app.schemas.auth import LoginRequest, SignupRequest
+from app.utils.auth import (
+    verify_password,
+    create_access_token,
+    hash_password,
+    create_refresh_token,
+)
 from sqlalchemy.future import select
 from app.schemas.auth import EmailValidationRequest
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
-import os
 from authlib.integrations.starlette_client import OAuth
-from dotenv import load_dotenv
 import logging
 from app.utils.auth import validate_password
-from pydantic import ValidationError
-import os
 
 from pydantic import BaseModel
-
-
-
-
 
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["Authentication"]
-)
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
 
+
 MAILBOXLAYER_API_KEY = os.getenv("MAILBOXLAYER_API_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = "HS256" 
+ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 GENERIC_MSG = {"message": "If the email exists, we sent a reset link."}
 
+
 # Environment variable validation
 def validate_env_variables():
     required_vars = [
-        "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
-        "MAIL_PORT", "MAIL_SERVER", "SECRET_KEY",
-        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
-        "GOOGLE_REDIRECT_URI", "FRONTEND_URL"
+        "MAIL_USERNAME",
+        "MAIL_PASSWORD",
+        "MAIL_FROM",
+        "MAIL_PORT",
+        "MAIL_SERVER",
+        "SECRET_KEY",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI",
+        "FRONTEND_URL",
     ]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     if missing_vars:
-        logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-        raise RuntimeError("Critical environment variables are missing. Check your .env file.")
+        logging.error(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
+        raise RuntimeError(
+            "Critical environment variables are missing. Check your .env file."
+        )
+
 
 validate_env_variables()
 
-# Email Configuration
+
 conf = ConnectionConfig(
     MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
     MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
@@ -84,24 +89,33 @@ conf = ConnectionConfig(
 
 serializer = URLSafeTimedSerializer(os.getenv("SECRET_KEY", "default_secret_key"))
 
-from fastapi import Response, Request
-from datetime import timedelta
+from fastapi import Response
 
 ACCESS_COOKIE_NAME = "sl_access"
 REFRESH_COOKIE_NAME = "sl_refresh"
 
+
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
-    _set_cookie_partitioned(response, ACCESS_COOKIE_NAME, access_token, path="/", max_age=60*60)              # 1h
-    _set_cookie_partitioned(response, REFRESH_COOKIE_NAME, refresh_token, path="/auth/refresh", max_age=60*60*24*7)
+    _set_cookie_partitioned(
+        response, ACCESS_COOKIE_NAME, access_token, path="/", max_age=60 * 60
+    )  # 1h
+    _set_cookie_partitioned(
+        response,
+        REFRESH_COOKIE_NAME,
+        refresh_token,
+        path="/auth/refresh",
+        max_age=60 * 60 * 24 * 7,
+    )
+
 
 def clear_auth_cookies(response: Response):
     _clear_cookie_partitioned(response, ACCESS_COOKIE_NAME, path="/")
     _clear_cookie_partitioned(response, REFRESH_COOKIE_NAME, path="/auth/refresh")
 
 
-# add near your cookie helpers
-def _set_cookie_partitioned(response, key, value, *, path="/", max_age: int | None = None):
-    # defensive: no CR/LF in cookie value
+def _set_cookie_partitioned(
+    response, key, value, *, path="/", max_age: int | None = None
+):
     value = (value or "").replace("\r", "").replace("\n", "")
     parts = [
         f"{key}={value}",
@@ -109,11 +123,12 @@ def _set_cookie_partitioned(response, key, value, *, path="/", max_age: int | No
         "Secure",
         "HttpOnly",
         "SameSite=None",
-        "Partitioned",            # 👈 CHIPS
+        "Partitioned",
     ]
     if max_age is not None:
         parts.append(f"Max-Age={int(max_age)}")
     response.headers.append("Set-Cookie", "; ".join(parts))
+
 
 def _clear_cookie_partitioned(response, key, *, path="/"):
     parts = [
@@ -128,13 +143,11 @@ def _clear_cookie_partitioned(response, key, *, path="/"):
     response.headers.append("Set-Cookie", "; ".join(parts))
 
 
-# OAuth Configuration
 oauth = OAuth()
 oauth.register(
     name="google",
     client_id=os.getenv("GOOGLE_CLIENT_ID"),
     client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-    # You can use server metadata instead of hardcoding endpoints:
     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
     client_kwargs={"scope": "openid email profile"},
 )
@@ -149,7 +162,6 @@ oauth.register(
     redirect_uri=os.getenv("FACEBOOK_REDIRECT_URI"),
     client_kwargs={"scope": "email,public_profile"},
 )
-
 
 
 @router.get("/facebook/login")
@@ -168,7 +180,7 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
 
         user_info_response = await oauth.facebook.get(
             "https://graph.facebook.com/me?fields=id,name,email",
-            token={"access_token": access_token} 
+            token={"access_token": access_token},
         )
         user_info = user_info_response.json()
 
@@ -176,7 +188,9 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
         name = user_info.get("name")
 
         if not email:
-            raise HTTPException(status_code=400, detail="Facebook did not return an email address")
+            raise HTTPException(
+                status_code=400, detail="Facebook did not return an email address"
+            )
 
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
@@ -200,22 +214,18 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
         await db.close()
 
 
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")  # must match Google console exactly
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://signlearn-2nxt.onrender.com")  # or your actual frontend
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://signlearn-2nxt.onrender.com")
 
 
-
-# Google Login
 @router.get("/google/login")
 async def google_login(request: Request):
-    # pass the exact same redirect_uri you'll use in the callback exchange
     return await oauth.google.authorize_redirect(
         request,
         redirect_uri=GOOGLE_REDIRECT_URI,
-        prompt="consent",  # optional
-        access_type="offline"  # optional
+        prompt="consent",
+        access_type="offline",
     )
-
 
 
 @router.get("/google/callback")
@@ -223,7 +233,6 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         token = await oauth.google.authorize_access_token(request)
 
-        # Prefer ID token; fall back to userinfo
         try:
             userinfo = await oauth.google.parse_id_token(request, token)
         except Exception as e:
@@ -235,9 +244,10 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
         email = userinfo.get("email")
         if not email:
-            raise HTTPException(status_code=400, detail="Google did not return an email")
+            raise HTTPException(
+                status_code=400, detail="Google did not return an email"
+            )
 
-        # Upsert user
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
@@ -247,22 +257,20 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
             await db.commit()
             await db.refresh(user)
 
-        # Decide where to send them
-        # (admins → module management, users → dashboard)
-        is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
+        is_admin = bool(
+            getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False)
+        )
 
-        # Optional: honor a safe ?next=/relative/path
         next_param = request.query_params.get("next")
         dest = "/admin/modules" if is_admin else "/dashboard"
-        if next_param and next_param.startswith("/"):   # simple safety check (same-origin relative)
+        if next_param and next_param.startswith("/"):
             dest = next_param
 
-        # Build redirect, then set cookies on it
         resp = RedirectResponse(url=f"{FRONTEND_URL}{dest}", status_code=302)
 
-        access_token  = create_access_token({"sub": email, "is_admin": is_admin})
+        access_token = create_access_token({"sub": email, "is_admin": is_admin})
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
-        set_auth_cookies(resp, access_token, refresh_token)  # HttpOnly; Secure; SameSite=None
+        set_auth_cookies(resp, access_token, refresh_token)
 
         return resp
 
@@ -275,34 +283,29 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         await db.close()
 
 
-
-
 @router.post("/login")
-async def login(request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+async def login(
+    request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+):
     try:
-        # 1) find the user
         result = await db.execute(select(User).where(User.email == request.email))
         user: User | None = result.scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # 2) local-password accounts only
         if not user.password:
             raise HTTPException(
                 status_code=400,
-                detail="This account was created with Google/Facebook. Sign in with that provider or reset your password."
+                detail="This account was created with Google/Facebook. Sign in with that provider or reset your password.",
             )
 
-        # 3) verify password
         if not verify_password(request.password, user.password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # 4) issue tokens
         is_admin = bool(user.is_admin)
-        access_token  = create_access_token({"sub": user.email, "is_admin": is_admin})
+        access_token = create_access_token({"sub": user.email, "is_admin": is_admin})
         refresh_token = create_refresh_token({"sub": user.email, "is_admin": is_admin})
 
-        # 5) set cookies + also return tokens for bearer fallback
         set_auth_cookies(response, access_token, refresh_token)
         return {
             "ok": True,
@@ -320,22 +323,22 @@ async def login(request: LoginRequest, response: Response, db: AsyncSession = De
     finally:
         await db.close()
 
-        
-
 
 @router.post("/signup")
 async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_db)):
     try:
-        # Check if the email or username already exists
-        email_exists = await db.execute(select(User).where(User.email == user_data.email))
+        email_exists = await db.execute(
+            select(User).where(User.email == user_data.email)
+        )
         if email_exists.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Email already exists")
 
-        username_exists = await db.execute(select(User).where(User.username == user_data.username))
+        username_exists = await db.execute(
+            select(User).where(User.username == user_data.username)
+        )
         if username_exists.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Username already exists")
 
-        # Hash the password and create the user
         hashed_password = hash_password(user_data.password)
         new_user = User(
             username=user_data.username,
@@ -346,11 +349,10 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
         db.add(new_user)
         await db.commit()
 
-        # Generate an email verification token
         token = serializer.dumps(user_data.email, salt="email-verification")
         frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
         verification_link = f"{frontend_url}/verify-email?token={token}"
-        # Send the verification email
+
         message = MessageSchema(
             subject="Verify your email",
             recipients=[user_data.email],
@@ -371,11 +373,13 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
 
         return {"message": "Account created! Please verify your email."}
     except HTTPException as e:
-        # Re-raise HTTPExceptions with specific error messages
         raise e
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=400, detail="An account with this email or username already exists.")
+        raise HTTPException(
+            status_code=400,
+            detail="An account with this email or username already exists.",
+        )
     except Exception as e:
         await db.rollback()
         logging.error(f"Error during user creation: {str(e)}")
@@ -385,16 +389,19 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
 
 
 from itsdangerous import URLSafeTimedSerializer
-import asyncio, random
+import asyncio
+import random
+
 
 @router.post("/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+async def forgot_password(
+    request: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)
+):
     """
     Always return a generic success message.
     If the user exists, send the email; otherwise do nothing.
     """
     try:
-        
         await asyncio.sleep(random.uniform(0.05, 0.15))
 
         result = await db.execute(select(User).where(User.email == request.email))
@@ -402,7 +409,9 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
 
         if user:
             token = serializer.dumps({"email": user.email}, salt="password-reset")
-            frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+            frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip(
+                "/"
+            )
             reset_link = f"{frontend_url}/reset-password?token={token}"
 
             message = MessageSchema(
@@ -423,23 +432,23 @@ async def forgot_password(request: ForgotPasswordRequest, db: AsyncSession = Dep
                 await FastMail(conf).send_message(message)
                 logging.info(f"[forgot-password] sent to {request.email}")
             except Exception as e:
-                # Don’t leak to client; just log
-                logging.exception(f"[forgot-password] mail send failed for {request.email}: {e}")
+                logging.exception(
+                    f"[forgot-password] mail send failed for {request.email}: {e}"
+                )
 
-        # Always return the same message to avoid enumeration
         return GENERIC_MSG
 
     except Exception as e:
-        logging.exception(f"[forgot-password] unexpected error for {request.email}: {e}")
-        # Still return generic message to the client
+        logging.exception(
+            f"[forgot-password] unexpected error for {request.email}: {e}"
+        )
+
         return GENERIC_MSG
     finally:
         await db.close()
 
 
-
-from fastapi import HTTPException
-from itsdangerous import SignatureExpired, BadSignature
+from itsdangerous import BadSignature
 
 
 @router.get("/verify-email", response_class=HTMLResponse)
@@ -457,7 +466,6 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
         frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
 
         if not user:
-            # Token is valid but the account is gone (or data mismatch)
             return HTMLResponse(f"""
                 <html><body>
                     <h1>Link invalid or already used</h1>
@@ -518,9 +526,6 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
         await db.close()
 
 
-
-
-
 @router.post("/validate-email")
 async def validate_email(request: EmailValidationRequest):
     """
@@ -531,15 +536,17 @@ async def validate_email(request: EmailValidationRequest):
     """
     try:
         email = request.email
-        base = os.getenv("MAILBOXLAYER_BASE_URL", "https://apilayer.net/api")  # use HTTPS
+        base = os.getenv(
+            "MAILBOXLAYER_BASE_URL", "https://apilayer.net/api"
+        )  # use HTTPS
         key = MAILBOXLAYER_API_KEY
 
-        # If the key is missing, don't block users
         if not key:
-            logging.warning("[validate-email] MAILBOXLAYER_API_KEY missing; allowing email by default")
+            logging.warning(
+                "[validate-email] MAILBOXLAYER_API_KEY missing; allowing email by default"
+            )
             return {"valid": True, "source": "no_key"}
 
-        # Ask for format + SMTP check; keep timeout short so UI never hangs
         url = f"{base}/check"
         params = {
             "access_key": key,
@@ -550,7 +557,9 @@ async def validate_email(request: EmailValidationRequest):
         resp = requests.get(url, params=params, timeout=4)
 
         if resp.status_code != 200:
-            logging.warning(f"[validate-email] non-200 from validator: {resp.status_code}")
+            logging.warning(
+                f"[validate-email] non-200 from validator: {resp.status_code}"
+            )
             return {"valid": True, "source": "validator_unavailable"}
 
         data = resp.json()
@@ -561,7 +570,6 @@ async def validate_email(request: EmailValidationRequest):
         if format_ok and smtp_ok:
             return {"valid": True, "format_valid": True, "smtp_check": True}
 
-        # Not valid: include reason so UI can show a friendly hint
         reason = did_you_mean or "Invalid email address."
         return {
             "valid": False,
@@ -571,25 +579,23 @@ async def validate_email(request: EmailValidationRequest):
         }
 
     except requests.Timeout:
-        # Don’t block on timeouts
         return {"valid": True, "source": "validator_timeout"}
     except Exception as e:
         logging.error(f"[validate-email] error: {e}")
-        # Do NOT 500; just allow so UX isn't blocked by a third-party hiccup
+
         return {"valid": True, "source": "validator_error"}
 
 
-
 @router.post("/reset-password")
-async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+async def reset_password(
+    data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)
+):
     """
     Reset the user's password using the provided token and new password.
     """
     try:
-        # Validate and decode the token to extract the email
         decoded_data = serializer.loads(data.token, salt="password-reset", max_age=3600)
 
-        # Ensure the decoded_data is a string (email)
         if isinstance(decoded_data, dict) and "email" in decoded_data:
             email = decoded_data["email"]
         elif isinstance(decoded_data, str):
@@ -597,27 +603,23 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
         else:
             raise HTTPException(status_code=400, detail="Invalid token format.")
 
-        # Fetch the user from the database using the decoded email
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
 
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # Validate the new password strength
         try:
             validate_password(data.new_password)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        # Check if the new password is different from the current one
         if verify_password(data.new_password, user.password):
             raise HTTPException(
                 status_code=400,
-                detail="New password cannot be the same as the current password."
+                detail="New password cannot be the same as the current password.",
             )
 
-        # Hash and update the password
         user.password = hash_password(data.new_password)
         await db.commit()
 
@@ -626,21 +628,23 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
     except SignatureExpired:
         raise HTTPException(status_code=400, detail="The reset token has expired.")
     except HTTPException as http_ex:
-        raise http_ex  # Re-raise known HTTPExceptions
+        raise http_ex
     except Exception as e:
-        # Log unexpected errors
         logging.error(f"Unexpected error during password reset: {str(e)}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+        raise HTTPException(
+            status_code=500, detail="An error occurred while processing your request."
+        )
     finally:
-        await db.close() 
+        await db.close()
 
-    
 
 from pydantic import BaseModel, EmailStr
 
+
 class CheckEmailRequest(BaseModel):
     email: EmailStr
+
 
 @router.post("/check-email")
 async def check_email(payload: CheckEmailRequest, db: AsyncSession = Depends(get_db)):
@@ -654,18 +658,23 @@ async def check_email(payload: CheckEmailRequest, db: AsyncSession = Depends(get
         return {"exists": user is not None}
     except Exception as e:
         logging.error(f"Error checking email: {e}")
-        raise HTTPException(status_code=500, detail="An error occurred while checking the email.")
+        raise HTTPException(
+            status_code=500, detail="An error occurred while checking the email."
+        )
     finally:
         await db.close()
+
 
 @router.post("/logout")
 async def logout(response: Response):
     clear_auth_cookies(response)
     return {"message": "logged out"}
 
+
 from fastapi import Cookie
 
-from fastapi import Cookie, Header
+from fastapi import Header
+
 
 @router.get("/me")
 async def me(
@@ -673,7 +682,6 @@ async def me(
     authorization: str | None = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
-    # choose cookie if present, else bearer header
     token = None
     if sl_access:
         token = sl_access
@@ -728,7 +736,7 @@ async def refresh_access_token_endpoint(
             raise HTTPException(status_code=404, detail="User not found.")
 
         new_access = create_access_token({"sub": email, "is_admin": user.is_admin})
-        # set new access cookie to keep session rolling
+
         if response:
             set_auth_cookies(response, new_access, token)
         return {"access_token": new_access}
@@ -738,7 +746,3 @@ async def refresh_access_token_endpoint(
         raise HTTPException(status_code=401, detail="Invalid refresh token.")
     finally:
         await db.close()
-
-
-
-    

@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
-import logging, os, re
+import logging
+import os
+import re
 from fastapi import Depends, HTTPException, Cookie
 from jose import jwt, JWTError, ExpiredSignatureError
 from passlib.context import CryptContext
@@ -11,37 +13,41 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-# Fail fast if SECRET_KEY is missing in prod
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
-    # during local dev you can set a default, but prod should set env
-    SECRET_KEY = "dev-secret-key"  # <-- replace/remove in prod
+    SECRET_KEY = "dev-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 # ---------- password helpers ----------
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
+
 # ---------- JWT helpers ----------
-def create_access_token(data: dict, expire_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
+def create_access_token(
+    data: dict, expire_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES
+) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    # logger.debug(f"Token payload created for {to_encode.get('sub')}, exp={expire.isoformat()}")  # safer logging
     return token
+
 
 def create_refresh_token(data: dict, expire_minutes: int = 60 * 24 * 7) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 # ---------- cookie-based current user ----------
 async def get_current_user_cookie(
@@ -74,22 +80,30 @@ async def get_current_user_cookie(
     except JWTError:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+
 async def require_admin(current_user: User = Depends(get_current_user_cookie)) -> User:
     if not getattr(current_user, "is_admin", False):
-        logger.warning(f"Unauthorized admin access attempt by: {getattr(current_user, 'email', 'unknown')}")
+        logger.warning(
+            f"Unauthorized admin access attempt by: {getattr(current_user, 'email', 'unknown')}"
+        )
         raise HTTPException(status_code=403, detail="Admin privileges required.")
     return current_user
 
-async def require_super_admin(current_user: User = Depends(get_current_user_cookie)) -> User:
+
+async def require_super_admin(
+    current_user: User = Depends(get_current_user_cookie),
+) -> User:
     if not getattr(current_user, "is_super_admin", False):
         raise HTTPException(status_code=403, detail="Super admin privileges required.")
     return current_user
+
 
 # ---------- email verification ----------
 def create_email_verification_token(email: str) -> str:
     expire = datetime.utcnow() + timedelta(hours=24)
     to_encode = {"sub": email, "exp": expire}
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def verify_email_verification_token(token: str) -> str:
     try:
@@ -103,22 +117,36 @@ def verify_email_verification_token(token: str) -> str:
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or expired token.")
 
+
 # ---------- password policy ----------
 def validate_password(password: str):
     if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+        raise HTTPException(
+            status_code=400, detail="Password must be at least 8 characters long."
+        )
     if not re.search(r"[A-Z]", password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter.")
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one uppercase letter.",
+        )
     if not re.search(r"[a-z]", password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter.")
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one lowercase letter.",
+        )
     if not re.search(r"\d", password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one digit.")
+        raise HTTPException(
+            status_code=400, detail="Password must contain at least one digit."
+        )
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one special character.")
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one special character.",
+        )
     if re.search(r"\s", password):
         raise HTTPException(status_code=400, detail="Password must not contain spaces.")
     return True
 
+
 # ---------- back-compat aliases ----------
-# So routers that still import these names keep working
-get_current_user = get_current_user_cookie  # old name → cookie version
+get_current_user = get_current_user_cookie

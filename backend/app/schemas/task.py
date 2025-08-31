@@ -1,12 +1,12 @@
 from pydantic import BaseModel, validator, field_validator
 from app.schemas.video_reference import VideoReferenceResponse
-from typing import Any, List, Optional, Dict
+from typing import List, Optional, Dict
 
 
 class TaskBase(BaseModel):
     task_type: str
-    content: Dict = {}  # Ensure content is always a dictionary
-    correct_answer: Optional[Dict] = None  # Allow None or empty dictionary
+    content: Dict = {}
+    correct_answer: Optional[Dict] = None
     version: int
     points: int
 
@@ -21,11 +21,11 @@ class TaskBase(BaseModel):
 
 class TaskCreate(TaskBase):
     lesson_id: int
-    video_ids: List[str] = []  # Ensure video_ids defaults to an empty list
+    video_ids: List[str] = []
 
 
 class TaskUpdate(TaskBase):
-    video_ids: List[str] = []  # Optional field for updating associated videos
+    video_ids: List[str] = []
 
 
 class TaskResponse(BaseModel):
@@ -44,11 +44,21 @@ class TaskResponse(BaseModel):
         if isinstance(value, list):
             return [
                 VideoReferenceResponse(
-                    video_id=video.video_id if hasattr(video, "video_id") else video.get("video_id"),
-                    gloss=video.gloss if hasattr(video, "gloss") else video.get("gloss"),
-                    signer_id=video.signer_id if hasattr(video, "signer_id") else video.get("signer_id"),
-                    video_metadata=video.video_metadata if hasattr(video, "video_metadata") else video.get("video_metadata"),
-                    video_url=video.video_url if hasattr(video, "video_url") else video.get("video_url"),
+                    video_id=video.video_id
+                    if hasattr(video, "video_id")
+                    else video.get("video_id"),
+                    gloss=video.gloss
+                    if hasattr(video, "gloss")
+                    else video.get("gloss"),
+                    signer_id=video.signer_id
+                    if hasattr(video, "signer_id")
+                    else video.get("signer_id"),
+                    video_metadata=video.video_metadata
+                    if hasattr(video, "video_metadata")
+                    else video.get("video_metadata"),
+                    video_url=video.video_url
+                    if hasattr(video, "video_url")
+                    else video.get("video_url"),
                 )
                 for video in value
             ]
@@ -63,4 +73,4 @@ class TaskResponse(BaseModel):
         return value if isinstance(value, dict) else {}
 
     class Config:
-        from_attributes = True  # Ensure compatibility with ORM models
+        from_attributes = True
