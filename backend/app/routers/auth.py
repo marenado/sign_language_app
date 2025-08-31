@@ -304,7 +304,8 @@ async def login(
         if not verify_password(request.password, user.password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        is_admin = bool(user.is_admin)
+        is_admin = bool(user.is_admin or getattr(user, "is_super_admin", False))
+
         access_token = create_access_token({"sub": user.email, "is_admin": is_admin})
         refresh_token = create_refresh_token({"sub": user.email, "is_admin": is_admin})
 
@@ -701,7 +702,7 @@ async def me(
         return {
             "email": user.email,
             "username": user.username,
-            "is_admin": bool(user.is_admin),
+            "is_admin": bool(user.is_admin or getattr(user, "is_super_admin", False)),
         }
     except JWTError:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -731,7 +732,9 @@ async def refresh_access_token_endpoint(
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        new_access = create_access_token({"sub": email, "is_admin": user.is_admin})
+        is_admin = bool(user.is_admin or getattr(user, "is_super_admin", False))
+        new_access = create_access_token({"sub": email, "is_admin": is_admin})
+
 
         if response:
             set_auth_cookies(response, new_access, token)
