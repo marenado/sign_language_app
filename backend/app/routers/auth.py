@@ -47,7 +47,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL")
 GENERIC_MSG = {"message": "If the email exists, we sent a reset link."}
 
 
-# Environment variable validation
+
 def validate_env_variables():
     required_vars = [
         "MAIL_USERNAME",
@@ -98,7 +98,7 @@ REFRESH_COOKIE_NAME = "sl_refresh"
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     _set_cookie_partitioned(
         response, ACCESS_COOKIE_NAME, access_token, path="/", max_age=60 * 60
-    )  # 1h
+    )  
     _set_cookie_partitioned(
         response,
         REFRESH_COOKIE_NAME,
