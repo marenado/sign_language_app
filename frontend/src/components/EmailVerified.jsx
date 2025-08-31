@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'https://signlearn.onrender.com';
 
 const EmailVerified = () => {
   const navigate = useNavigate();

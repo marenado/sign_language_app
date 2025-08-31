@@ -30,7 +30,7 @@ export const AuthContext = createContext({
 });
 
 const API_BASE = (
-  process.env.REACT_APP_API_BASE || 'https://signlearn.onrender.com'
+  import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com'
 ).replace(/\/$/, '');
 
 const buildOAuthUrl = (provider) => {
