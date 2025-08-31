@@ -29,6 +29,16 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
+const API_BASE = (
+  process.env.REACT_APP_API_BASE || 'https://signlearn.onrender.com'
+).replace(/\/$/, '');
+
+const buildOAuthUrl = (provider) => {
+  const url = new URL(`${API_BASE}/auth/${provider}/login`);
+  url.searchParams.set('next', window.location.origin + window.location.pathname);
+  return url.toString();
+};
+
 const Login = ({ onLoggedIn, autoCheck = false }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,11 +78,12 @@ const Login = ({ onLoggedIn, autoCheck = false }) => {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = 'https://signlearn.onrender.com/auth/google/login';
-  };
-  const handleFacebookLogin = () => {
-    window.location.href = 'https://signlearn.onrender.com/auth/facebook/login';
-  };
+  window.location.replace(buildOAuthUrl('google'));
+};
+
+const handleFacebookLogin = () => {
+  window.location.replace(buildOAuthUrl('facebook'));
+};
 
   return (
     <Container>

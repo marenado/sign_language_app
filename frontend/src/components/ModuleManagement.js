@@ -291,29 +291,31 @@ const ModuleManagement = () => {
   };
 
   const fetchModules = useCallback(async () => {
-    if (!isAuthenticated || !selectedLanguage) return;
+  if (!isAuthenticated || !selectedLanguage) return;
 
-    try {
-      const res = await api.get('/admin/modules', {
-        params: { language_id: selectedLanguage },
-      });
-      const modulesData = res.data;
-      setModules(modulesData);
+  try {
+    const { data: modulesData } = await api.get("/admin/modules", {
+      params: { language_id: selectedLanguage },
+    });
+    setModules(modulesData);
 
-      // Fetch lessons for each module
-      modulesData.forEach((module) => {
-        fetchLessons(module.module_id);
-      });
-    } catch (error) {
-      if (error.response?.status === 401) {
-        localStorage.removeItem('authToken');
-        setIsAuthenticated(false);
-        navigate('/login');
-      } else {
-        console.error('Error fetching modules:', error);
-      }
+    await Promise.all(
+      modulesData.map((m) =>
+        fetchLessons(m.module_id).catch(() => {})
+      )
+    );
+  } catch (err) {
+    const status = err?.response?.status;
+
+    if (status === 401) {
+      setIsAuthenticated(false);
+      return;
     }
-  }, [isAuthenticated, selectedLanguage, navigate]);
+
+    console.error("Error fetching modules:", err.response?.data || err.message);
+  }
+}, [isAuthenticated, selectedLanguage, fetchLessons]);
+
 
   const fetchLessons = async (moduleId) => {
     if (!moduleId) {
