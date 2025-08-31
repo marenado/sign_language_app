@@ -290,6 +290,28 @@ const ModuleManagement = () => {
     }
   };
 
+
+  const fetchLessons = useCallback(async (moduleId) => {
+    if (!moduleId) {
+      console.error('Module ID is required to fetch lessons.');
+
+      return;
+    }
+
+    try {
+      const { data } = await api.get('/admin/lessons', {
+        params: { module_id: moduleId },
+      });
+      setLessons((prev) => ({ ...prev, [moduleId]: data }));
+    } catch (error) {
+      console.error(
+        `Error fetching lessons for module ${moduleId}:`,
+        error.response?.data || error.message,
+      );
+    }
+ }, []);
+
+
   const fetchModules = useCallback(async () => {
   if (!isAuthenticated || !selectedLanguage) return;
 
@@ -317,25 +339,7 @@ const ModuleManagement = () => {
 }, [isAuthenticated, selectedLanguage, fetchLessons]);
 
 
-  const fetchLessons = async (moduleId) => {
-    if (!moduleId) {
-      console.error('Module ID is required to fetch lessons.');
-
-      return;
-    }
-
-    try {
-      const { data } = await api.get('/admin/lessons', {
-        params: { module_id: moduleId },
-      });
-      setLessons((prev) => ({ ...prev, [moduleId]: data }));
-    } catch (error) {
-      console.error(
-        `Error fetching lessons for module ${moduleId}:`,
-        error.response?.data || error.message,
-      );
-    }
-  };
+  
 
   const fetchTasks = async (lessonId) => {
     try {
