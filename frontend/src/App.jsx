@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useState, useEffect, createContext } from 'react';
 import styled from 'styled-components';
 import {
@@ -29,7 +30,6 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
-// robust normalizer
 const normalizeIsAdmin = (v) => {
   if (v === true || v === 1) return true;
   if (typeof v === 'string') {
@@ -44,61 +44,62 @@ const API_BASE = (import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.
   '',
 );
 
+// 🔑 Always send OAuth back to a neutral handoff page
 const buildOAuthUrl = (provider) => {
   const url = new URL(`${API_BASE}/auth/${provider}/login`);
-  url.searchParams.set('next', window.location.origin + window.location.pathname);
+  url.searchParams.set('next', `${window.location.origin}/post-auth`);
   return url.toString();
 };
 
-const Login = ({ onLoggedIn, autoCheck = false }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
+// After login (email+pwd or OAuth) we come here and choose destination
+const PostAuth = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const doCheck = autoCheck || new URLSearchParams(location.search).get('auto') === '1';
-
-  // optional auto-check if you link to "/?auto=1"
   useEffect(() => {
-    if (!doCheck) return;
     let alive = true;
     (async () => {
       try {
         const { data } = await api.get('/auth/me');
         if (!alive) return;
         const isAdmin = normalizeIsAdmin(data?.is_admin);
-        onLoggedIn(isAdmin);
         navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
       } catch {
-        // stay on login page silently
+        navigate('/', { replace: true });
       }
     })();
     return () => {
       alive = false;
     };
-  }, [doCheck, navigate, onLoggedIn]);
+  }, [navigate]);
+  return <div>Signing you in…</div>;
+};
+
+const Login = ({ onLoggedIn }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setMessage('');
     try {
       await api.post('/auth/login', { email, password });
-      const { data } = await api.get('/auth/me');
-      const isAdmin = normalizeIsAdmin(data?.is_admin);
-      onLoggedIn(isAdmin);
-      navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
+      // Option A (simple): let PostAuth decide for both paths
+      navigate('/post-auth', { replace: true });
+
+      // Option B (inline decide). If you prefer this, comment the line above:
+      // const { data } = await api.get('/auth/me');
+      // const isAdmin = normalizeIsAdmin(data?.is_admin);
+      // onLoggedIn(isAdmin);
+      // navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
     } catch (error) {
       console.error('Login error:', error.response?.data?.detail || error.message);
       setMessage('Invalid email or password. Please try again.');
     }
   };
 
-  const handleGoogleLogin = () => {
-    window.location.replace(buildOAuthUrl('google'));
-  };
-  const handleFacebookLogin = () => {
-    window.location.replace(buildOAuthUrl('facebook'));
-  };
+  const handleGoogleLogin = () => window.location.replace(buildOAuthUrl('google'));
+  const handleFacebookLogin = () => window.location.replace(buildOAuthUrl('facebook'));
 
   return (
     <Container>
@@ -107,7 +108,7 @@ const Login = ({ onLoggedIn, autoCheck = false }) => {
         <p>Unlock the Language of Hands</p>
         <Description>
           <TypedText
-            text="SignLearn is your gateway to mastering the world of sign languages. Uniquely offering one platform for multiple sign languages, we make learning seamless, interactive, and engaging. Dive into immersive lessons, sharpen your skills with hands-on practice, and experience the joy of connecting through the universal language of gestures. SignLearn is where your journey to communication begins!"
+            text="SignLearn is your gateway to mastering the world of sign languages..."
             speed={20}
           />
         </Description>
@@ -171,6 +172,7 @@ function UserOnly({ authenticated, isAdmin, children }) {
 const App = () => {
   const [auth, setAuth] = useState({ ready: false, authenticated: false, isAdmin: false });
 
+  // Bootstrap session
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -205,20 +207,18 @@ const App = () => {
     <AuthContext.Provider value={{ auth, setAuth, logout }}>
       <Router>
         <Routes>
-          {/* If a non-admin hits any /admin/* path, bounce them away */}
+          {/* Kick non-admins away from any /admin/* when signed in */}
           {auth.authenticated && !auth.isAdmin && (
             <Route path="/admin/*" element={<Navigate to="/dashboard" replace />} />
           )}
 
+          {/* OAuth/Email handoff */}
+          <Route path="/post-auth" element={<PostAuth />} />
+
           {/* Welcome / login */}
           <Route
             path="/"
-            element={
-              <Login
-                autoCheck={false}
-                onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })}
-              />
-            }
+            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
           />
 
           {/* Public auth pages */}
@@ -306,6 +306,9 @@ const App = () => {
 };
 
 export default App;
+
+/* Styles omitted for brevity — keep your existing styled-components from your file */
+
 
 /* ——— styles ——— */
 const Container = styled.div`
