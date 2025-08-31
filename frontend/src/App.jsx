@@ -78,7 +78,7 @@ const Login = ({ onLoggedIn, autoCheck = false }) => {
   };
 
   const handleGoogleLogin = () => {
-  window.location.replace(buildOAuthUrl('google'));
+   window.location.href = 'https://signlearn.onrender.com/auth/google/login';
 };
 
 const handleFacebookLogin = () => {
