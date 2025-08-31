@@ -29,6 +29,11 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
+
+const normalizeIsAdmin = (v) =>
+  v === true || v === 1 || (typeof v === 'string' && v.toLowerCase() === 'true');
+
+
 const API_BASE = (
   import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com'
 ).replace(/\/$/, '');
@@ -64,18 +69,21 @@ const Login = ({ onLoggedIn, autoCheck = false }) => {
   }, [doCheck, navigate, onLoggedIn]);
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    try {
-      await api.post('/auth/login', { email, password });
-      const { data } = await api.get('/auth/me');
-      onLoggedIn(!!data.is_admin);
-      navigate(data.is_admin ? '/admin/modules' : '/dashboard', { replace: true });
-    } catch (error) {
-      console.error('Login error:', error.response?.data?.detail || error.message);
-      setMessage('Invalid email or password. Please try again.');
-    }
-  };
+  e.preventDefault();
+  setMessage('');
+  try {
+    await api.post('/auth/login', { email, password });
+    const { data } = await api.get('/auth/me');
+
+    const isAdmin = normalizeIsAdmin(data?.is_admin);
+    onLoggedIn(isAdmin);
+    navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
+  } catch (error) {
+    console.error('Login error:', error.response?.data?.detail || error.message);
+    setMessage('Invalid email or password. Please try again.');
+  }
+};
+
 
   const handleGoogleLogin = () => {
    window.location.href = 'https://signlearn.onrender.com/auth/google/login';
