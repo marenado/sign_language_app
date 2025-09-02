@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from fastapi import Response
 import os
 from jose import jwt, JWTError
+from urllib.parse import urlencode, quote
 from itsdangerous import BadSignature
 from jose.exceptions import ExpiredSignatureError
 import requests
@@ -164,8 +165,13 @@ oauth.register(
     client_kwargs={"scope": "email,public_profile"},
 )
 
+@router.get("/facebook/login")
+async def facebook_login(request: Request):
+    return await oauth.facebook.authorize_redirect(
+        request,
+        redirect_uri=os.getenv("FACEBOOK_REDIRECT_URI"),
+    )
 
-from urllib.parse import urlencode, quote
 
 @router.get("/facebook/callback")
 async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)):
