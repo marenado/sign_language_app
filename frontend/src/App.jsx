@@ -50,14 +50,12 @@ const API_BASE = (import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.
   '',
 );
 
-// 🔑 Always send OAuth back to a neutral handoff page
 const buildOAuthUrl = (provider) => {
   const url = new URL(`${API_BASE}/auth/${provider}/login`);
   url.searchParams.set('next', `${window.location.origin}/post-auth`);
   return url.toString();
 };
 
-// After login (email+pwd or OAuth) we come here and choose destination
 const PostAuth = () => {
   const navigate = useNavigate();
   const { setAuth } = useContext(AuthContext);
@@ -66,22 +64,34 @@ const PostAuth = () => {
     let alive = true;
     (async () => {
       try {
+        // 1) If Facebook redirected with #rt=..., grab it
+        const hash = window.location.hash || '';
+        const m = hash.match(/(?:^|#|&)rt=([^&]+)/);
+        const rt = m ? decodeURIComponent(m[1]) : null;
+
+        if (rt) {
+          // 2) Exchange for cookies in a first-party context (server already supports this)
+          await api.post('/auth/refresh', { refresh_token: rt });
+
+          // 3) Clean the URL (remove fragment)
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+
+        // 4) Continue as before
         const { data } = await api.get('/auth/me', { headers: { 'x-skip-refresh': '1' } });
         if (!alive) return;
         const isAdmin = readIsAdmin(data);
 
-        // <- IMPORTANT: set the auth context so guards have the correct value
         setAuth({ ready: true, authenticated: true, isAdmin });
-
         navigate(isAdmin ? '/admin/modules' : '/dashboard', { replace: true });
       } catch {
-        // clear auth if anything failed
         setAuth({ ready: true, authenticated: false, isAdmin: false });
         navigate('/', { replace: true });
       }
     })();
     return () => (alive = false);
   }, [navigate, setAuth]);
+
 
   return <div>Signing you in…</div>;
 };
