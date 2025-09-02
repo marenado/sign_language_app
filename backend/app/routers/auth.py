@@ -193,19 +193,32 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
-            user = User(email=email, username=name or email.split("@")[0], password="", is_verified=True)
+            user = User(
+                email=email,
+                username=name or email.split("@")[0],
+                password="",
+                is_verified=True,
+            )
             db.add(user)
             await db.commit()
             await db.refresh(user)
 
         is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
-        # Set httpOnly cookies (no Partitioned) and bounce to frontend
-        resp = RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/post-auth", status_code=302)
+        next_param = request.query_params.get("next")
+        dest = "/admin/modules" if is_admin else "/dashboard"
+        if next_param and next_param.startswith("/"):
+            dest = next_param
+
+        resp = RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}{dest}", status_code=302)
+
         access_token = create_access_token({"sub": email, "is_admin": is_admin})
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
-        set_auth_cookies(resp, access_token, refresh_token, partitioned=False)
+
+        set_auth_cookies(resp, access_token, refresh_token, partitioned=True)
+
         return resp
+
     except HTTPException:
         raise
     except Exception:
