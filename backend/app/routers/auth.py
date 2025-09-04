@@ -42,6 +42,11 @@ from urllib.parse import quote
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING) 
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+logging.getLogger("authlib").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -180,7 +185,7 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
         qp = request.query_params
         if any(k in qp for k in ("error", "error_code", "error_reason", "error_description", "error_message")):
             reason = qp.get("error_description") or qp.get("error_message") or qp.get("error_reason") or qp.get("error")
-            logging.warning(f"Facebook OAuth error: {dict(qp)} | reason={reason!r}")
+            logging.warning("Facebook OAuth error; keys=%s; reason=%s", list(qp.keys()), bool(reason))
             return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
 
         token = await oauth.facebook.authorize_access_token(request)
@@ -324,7 +329,7 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        logging.exception(f"Error during login for {request.email}: {e}")
+        logging.exception(f"Error during login")
         raise HTTPException(status_code=500, detail="An error occurred during login.")
     finally:
         await db.close()
@@ -434,17 +439,17 @@ async def forgot_password(
             )
             try:
                 await FastMail(conf).send_message(message)
-                logging.info(f"[forgot-password] sent to {request.email}")
+                logging.info("[forgot-password] sent")
             except Exception as e:
                 logging.exception(
-                    f"[forgot-password] mail send failed for {request.email}: {e}"
+                    "[forgot-password] mail send failed"
                 )
 
         return GENERIC_MSG
 
     except Exception as e:
         logging.exception(
-            f"[forgot-password] unexpected error for {request.email}: {e}"
+            "[forgot-password] unexpected error"
         )
 
         return GENERIC_MSG
