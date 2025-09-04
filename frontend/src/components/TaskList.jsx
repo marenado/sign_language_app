@@ -1171,9 +1171,24 @@ const TaskList = () => {
     }
   };
 
-  // Pretty-print task.content by task_type
+  const toArray = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? [v] : []);
+  const joinOrDash = (v) => {
+    const arr = toArray(v);
+    return arr.length ? arr.join(', ') : '—';
+  };
+  const answerText = (ans) => {
+    if (ans == null) return '—';
+    if (typeof ans === 'string') return ans;
+    if (typeof ans === 'object') return ans.option ?? ans.text ?? '—';
+    return String(ans);
+  };
+
   const renderContentSummary = (task) => {
-    const c = task?.content || {};
+    const c = task && cIsObj(task.content) ? task.content : {};
+    function cIsObj(v) {
+      return v && typeof v === 'object' && !Array.isArray(v);
+    }
+
     switch (task.task_type) {
       case 'video_to_sign':
         return (
@@ -1182,7 +1197,7 @@ const TaskList = () => {
               <b>Video ID:</b> {c.video_id ?? '—'}
             </Typography>
             <Typography variant="body2">
-              <b>Answer:</b> {task.correct_answer?.option || task.correct_answer || '—'}
+              <b>Answer:</b> {answerText(task.correct_answer)}
             </Typography>
           </>
         );
@@ -1194,10 +1209,10 @@ const TaskList = () => {
               <b>Video ID:</b> {c.video_id ?? '—'}
             </Typography>
             <Typography variant="body2">
-              <b>Options:</b> {(c.options || []).join(', ') || '—'}
+              <b>Options:</b> {joinOrDash(c.options)}
             </Typography>
             <Typography variant="body2">
-              <b>Correct:</b> {task.correct_answer?.option || '—'}
+              <b>Correct:</b> {answerText(task.correct_answer)}
             </Typography>
           </>
         );
@@ -1209,13 +1224,13 @@ const TaskList = () => {
               <b>Video ID:</b> {c.video_id ?? '—'}
             </Typography>
             <Typography variant="body2">
-              <b>Options:</b> {(c.options || []).join(', ') || '—'}
+              <b>Options:</b> {joinOrDash(c.options)}
             </Typography>
             <Typography variant="body2">
-              <b>Time limit:</b> {c.time_limit ?? '—'}s
+              <b>Time limit:</b> {c.time_limit ?? '—'}
             </Typography>
             <Typography variant="body2">
-              <b>Correct:</b> {task.correct_answer?.option || '—'}
+              <b>Correct:</b> {answerText(task.correct_answer)}
             </Typography>
           </>
         );
@@ -1226,10 +1241,10 @@ const TaskList = () => {
             <Typography variant="body2">
               <b>Pairs:</b>
             </Typography>
-            {(c.pairs || []).length ? (
-              (c.pairs || []).map((p, i) => (
+            {Array.isArray(c.pairs) && c.pairs.length ? (
+              c.pairs.map((p, i) => (
                 <Typography key={i} variant="body2" sx={{ ml: 1 }}>
-                  {i + 1}. {p.word || '—'} — {p.video?.gloss || p.video?.id || '—'}
+                  {i + 1}. {p?.word || '—'} — {p?.video?.gloss || p?.video?.id || '—'}
                 </Typography>
               ))
             ) : (
@@ -1297,7 +1312,10 @@ const TaskList = () => {
               }}
             >
               <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                Task Type: {task.task_type.replace(/_/g, ' ')}
+                Task Type:{' '}
+                {typeof task.task_type === 'string'
+                  ? task.task_type.replace(/_/g, ' ')
+                  : String(task.task_type ?? 'Unknown')}
               </Typography>
 
               {task.task_type !== 'sign_presentation' && (
@@ -1306,8 +1324,6 @@ const TaskList = () => {
                 </Typography>
               )}
 
-              {/* Instead of dumping raw JSON or inline matching logic,
-        just call your pretty-printer helper */}
               <Box sx={{ mt: 0.5 }}>{renderContentSummary(task)}</Box>
 
               <Box
