@@ -22,6 +22,7 @@ api.interceptors.response.use(
       url.includes('/auth/refresh') ||
       url.includes('/auth/login') ||
       url.includes('/auth/google') ||
+      url.includes('/auth/handoff') || 
       url.includes('/auth/facebook');
 
     const skipRefresh = original?.headers?.['x-skip-refresh'] === '1';
