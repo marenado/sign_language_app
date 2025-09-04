@@ -64,20 +64,17 @@ const PostAuth = () => {
     let alive = true;
     (async () => {
       try {
-        // 1) If Facebook redirected with #rt=..., grab it
         const hash = window.location.hash || '';
-        const m = hash.match(/(?:^|#|&)rt=([^&]+)/);
-        const rt = m ? decodeURIComponent(m[1]) : null;
+        const m = hash.match(/(?:^|#|&)hc=([^&]+)/);   
+        const hc = m ? decodeURIComponent(m[1]) : null;
 
-        if (rt) {
-          // 2) Exchange for cookies in a first-party context (server already supports this)
-          await api.post('/auth/refresh', { refresh_token: rt });
-
-          // 3) Clean the URL (remove fragment)
+        if (hc) {
+          await api.post('/auth/handoff', { code: hc }); 
+          // Clean the URL
           window.history.replaceState({}, '', window.location.pathname);
         }
 
-        // 4) Continue as before
+       
         const { data } = await api.get('/auth/me', { headers: { 'x-skip-refresh': '1' } });
         if (!alive) return;
         const isAdmin = readIsAdmin(data);
@@ -92,9 +89,9 @@ const PostAuth = () => {
     return () => (alive = false);
   }, [navigate, setAuth]);
 
-
   return <div>Signing you in…</div>;
 };
+
 
 const Login = ({ onLoggedIn }) => {
   const [email, setEmail] = useState('');
