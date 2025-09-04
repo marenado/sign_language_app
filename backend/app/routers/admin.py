@@ -1,4 +1,3 @@
-# routers/admin.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -7,6 +6,8 @@ from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional, List
 import logging
 from sqlalchemy.exc import SQLAlchemyError
+from fastapi import Response, status
+from sqlalchemy import select, update
 
 from app.database import get_db
 from app.models.user import User
@@ -104,8 +105,6 @@ async def get_modules(
         raise HTTPException(status_code=500, detail="Failed to fetch modules")
 
 
-from fastapi import Response, status
-from sqlalchemy import select, update
 
 
 @router.delete("/modules/{module_id}", status_code=204)

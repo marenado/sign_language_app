@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import Response
 import os
 from jose import jwt, JWTError
-from urllib.parse import urlencode, quote
+from urllib.parse import  quote
 from itsdangerous import BadSignature
 from jose.exceptions import ExpiredSignatureError
 import requests
@@ -168,7 +168,7 @@ oauth.register(
     access_token_url="https://graph.facebook.com/v16.0/oauth/access_token",
     userinfo_endpoint="https://graph.facebook.com/me",
     redirect_uri=os.getenv("FACEBOOK_REDIRECT_URI"),
-    client_kwargs={"scope": "email,public_profile"},
+    client_kwargs={"scope": "email public_profile"},
 )
 
 @router.get("/facebook/login")
@@ -226,12 +226,6 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
     except Exception:
         logging.exception("Unexpected error in Facebook callback")
         return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
-    finally:
-        await db.close()
-
-
-
-
 
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://signlearn-2nxt.onrender.com")
@@ -288,8 +282,6 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception:
         logging.exception("Unexpected error in Google callback")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
-    finally:
-        await db.close()
 
 
 
@@ -331,8 +323,7 @@ async def login(
     except Exception as e:
         logging.exception(f"Error during login")
         raise HTTPException(status_code=500, detail="An error occurred during login.")
-    finally:
-        await db.close()
+
 
 
 @router.post("/signup")
@@ -395,8 +386,7 @@ async def create_user(user_data: SignupRequest, db: AsyncSession = Depends(get_d
         await db.rollback()
         logging.error(f"Error during user creation: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred during signup.")
-    finally:
-        await db.close()
+
 
 
 
@@ -453,8 +443,7 @@ async def forgot_password(
         )
 
         return GENERIC_MSG
-    finally:
-        await db.close()
+
 
 
 
@@ -530,8 +519,7 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
                 <p><a href="{frontend_url}/">Go to Sign In</a></p>
             </body></html>
         """)
-    finally:
-        await db.close()
+
 
 
 @router.post("/validate-email")
@@ -643,8 +631,7 @@ async def reset_password(
         raise HTTPException(
             status_code=500, detail="An error occurred while processing your request."
         )
-    finally:
-        await db.close()
+
 
 
 
@@ -669,8 +656,7 @@ async def check_email(payload: CheckEmailRequest, db: AsyncSession = Depends(get
         raise HTTPException(
             status_code=500, detail="An error occurred while checking the email."
         )
-    finally:
-        await db.close()
+
 
 
 @router.post("/logout")
@@ -714,8 +700,7 @@ async def me(
         }
     except JWTError:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    finally:
-        await db.close()
+
 
 
 @router.post("/refresh")
@@ -751,9 +736,6 @@ async def refresh_access_token_endpoint(
         raise HTTPException(status_code=401, detail="Refresh token has expired.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token.")
-    finally:
-        await db.close()
-
 
 
 @router.post("/handoff")
@@ -773,6 +755,5 @@ async def handoff_exchange(payload: HandoffRequest, response: Response):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     access = create_access_token({"sub": email, "is_admin": is_admin})
-    # IMPORTANT: cross-site handoff → partitioned cookies
     set_auth_cookies(response, access, refresh, partitioned=True)
     return {"ok": True}
