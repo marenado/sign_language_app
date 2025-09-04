@@ -35,7 +35,9 @@ from pydantic import BaseModel
 from itsdangerous import URLSafeTimedSerializer
 import asyncio
 import random
-
+from app.schemas.HandoffRequest import HandoffRequest
+from app.auth_handoff import make_code, pop_refresh 
+from urllib.parse import quote
 
 load_dotenv()
 
@@ -176,15 +178,18 @@ async def facebook_login(request: Request):
 @router.get("/facebook/callback")
 async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        qp = request.query_params  
+        # If Facebook bounces with an error, go home gracefully
+        qp = request.query_params
         if any(k in qp for k in ("error", "error_code", "error_reason", "error_description", "error_message")):
             reason = qp.get("error_description") or qp.get("error_message") or qp.get("error_reason") or qp.get("error")
             logging.warning(f"Facebook OAuth error: {dict(qp)} | reason={reason!r}")
             return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
-      
+
+        # Exchange code -> Facebook access token
         token = await oauth.facebook.authorize_access_token(request)
         access_token_fb = token["access_token"]
 
+        # Fetch user profile (need email)
         user_info_response = await oauth.facebook.get(
             "https://graph.facebook.com/me?fields=id,name,email",
             token={"access_token": access_token_fb},
@@ -197,24 +202,24 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
             logging.warning("Facebook login: no email returned in /me response")
             return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
 
+        # Upsert user
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
-            user = User(
-                email=email,
-                username=name or email.split("@")[0],
-                password="",
-                is_verified=True,
-            )
+            user = User(email=email, username=name or email.split("@")[0], password="", is_verified=True)
             db.add(user)
             await db.commit()
             await db.refresh(user)
 
         is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
+        # Issue refresh token (server secret), wrap into short-lived handoff code
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
+        code = make_code(refresh_token)
+
+        # Send only the code to the frontend (fragment so it never hits your servers/logs)
         return RedirectResponse(
-            url=f"{FRONTEND_URL.rstrip('/')}/post-auth#rt={quote(refresh_token)}",
+            url=f"{FRONTEND_URL.rstrip('/')}/post-auth#hc={quote(code)}",
             status_code=302,
         )
 
@@ -225,6 +230,7 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
         return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
     finally:
         await db.close()
+
 
 
 
@@ -748,3 +754,30 @@ async def refresh_access_token_endpoint(
         raise HTTPException(status_code=401, detail="Invalid refresh token.")
     finally:
         await db.close()
+
+
+
+@router.post("/handoff")
+async def handoff_exchange(payload: HandoffRequest, response: Response):
+    code = (payload.code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing code")
+
+    refresh = pop_refresh(code)
+    if not refresh:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    try:
+        data = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
+        email = data.get("sub")
+        is_admin = bool(data.get("is_admin", False))
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    access = create_access_token({"sub": email, "is_admin": is_admin})
+    set_auth_cookies(response, access, refresh, partitioned=False)
+
+    return {"ok": True}
+
