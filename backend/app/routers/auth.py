@@ -52,7 +52,7 @@ MAILBOXLAYER_API_KEY = os.getenv("MAILBOXLAYER_API_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
-FRONTEND_URL = os.getenv("FRONTEND_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://signlearn-2nxt.onrender.com")
 GENERIC_MSG = {"message": "If the email exists, we sent a reset link."}
 
 
@@ -176,6 +176,12 @@ async def facebook_login(request: Request):
 @router.get("/facebook/callback")
 async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
+        qp = dict(request.query_params)
+        if "error" in qp:
+            logging.warning(f"Facebook OAuth error: {qp.get('error')}: "
+                            f"{qp.get('error_description') or qp.get('error_message')}")
+            return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
+
         token = await oauth.facebook.authorize_access_token(request)
         access_token_fb = token["access_token"]
 
@@ -247,9 +253,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
         email = userinfo.get("email")
         if not email:
-            raise HTTPException(
-                status_code=400, detail="Google did not return an email"
-            )
+            raise HTTPException(status_code=400, detail="Google did not return an email")
 
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
@@ -260,22 +264,14 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
             await db.commit()
             await db.refresh(user)
 
-        is_admin = bool(
-            getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False)
-        )
+        is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
-        next_param = request.query_params.get("next")
-        dest = "/admin/modules" if is_admin else "/dashboard"
-        if next_param and next_param.startswith("/"):
-            dest = next_param
-
-        resp = RedirectResponse(url=f"{FRONTEND_URL}{dest}", status_code=302)
-
-        access_token = create_access_token({"sub": email, "is_admin": is_admin})
+        from urllib.parse import quote
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
-        set_auth_cookies(resp, access_token, refresh_token, partitioned=False)
-
-        return resp
+        return RedirectResponse(
+            url=f"{FRONTEND_URL.rstrip('/')}/post-auth#rt={quote(refresh_token)}",
+            status_code=302
+        )
 
     except HTTPException:
         raise
