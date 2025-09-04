@@ -13,7 +13,7 @@ const TaskList = () => {
     'video_recognition',
     'video_to_sign',
     'matching',
-    'gesture_replication',
+//    'gesture_replication',
     'sign_speed_challenge',
     'sign_presentation',
   ]);
