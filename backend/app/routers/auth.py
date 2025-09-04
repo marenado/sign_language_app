@@ -110,7 +110,6 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str, 
     _set_cookie(response, REFRESH_COOKIE_NAME, refresh_token, path="/auth/refresh", max_age=60 * 60 * 24 * 7, partitioned=partitioned)
 
 def clear_auth_cookies(response: Response):
-    # clear both variants (partitioned and non-partitioned), in case either exists
     _clear_cookie(response, ACCESS_COOKIE_NAME, path="/", partitioned=True)
     _clear_cookie(response, ACCESS_COOKIE_NAME, path="/", partitioned=False)
     _clear_cookie(response, REFRESH_COOKIE_NAME, path="/auth/refresh", partitioned=True)
@@ -178,18 +177,15 @@ async def facebook_login(request: Request):
 @router.get("/facebook/callback")
 async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        # If Facebook bounces with an error, go home gracefully
         qp = request.query_params
         if any(k in qp for k in ("error", "error_code", "error_reason", "error_description", "error_message")):
             reason = qp.get("error_description") or qp.get("error_message") or qp.get("error_reason") or qp.get("error")
             logging.warning(f"Facebook OAuth error: {dict(qp)} | reason={reason!r}")
             return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
 
-        # Exchange code -> Facebook access token
         token = await oauth.facebook.authorize_access_token(request)
         access_token_fb = token["access_token"]
 
-        # Fetch user profile (need email)
         user_info_response = await oauth.facebook.get(
             "https://graph.facebook.com/me?fields=id,name,email",
             token={"access_token": access_token_fb},
@@ -202,7 +198,6 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
             logging.warning("Facebook login: no email returned in /me response")
             return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
 
-        # Upsert user
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
@@ -213,11 +208,9 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
 
         is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
-        # Issue refresh token (server secret), wrap into short-lived handoff code
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
         code = make_code(refresh_token)
 
-        # Send only the code to the frontend (fragment so it never hits your servers/logs)
         return RedirectResponse(
             url=f"{FRONTEND_URL.rstrip('/')}/post-auth#hc={quote(code)}",
             status_code=302,
@@ -248,7 +241,6 @@ async def google_login(request: Request):
         access_type="offline",
     )
 
-
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
@@ -278,11 +270,12 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
 
         is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
-        from urllib.parse import quote
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
+        code = make_code(refresh_token)
+
         return RedirectResponse(
-            url=f"{FRONTEND_URL.rstrip('/')}/post-auth#rt={quote(refresh_token)}",
-            status_code=302
+            url=f"{FRONTEND_URL.rstrip('/')}/post-auth#hc={quote(code)}",
+            status_code=302,
         )
 
     except HTTPException:
@@ -292,6 +285,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     finally:
         await db.close()
+
 
 
 @router.post("/login")
@@ -767,17 +761,13 @@ async def handoff_exchange(payload: HandoffRequest, response: Response):
     if not refresh:
         raise HTTPException(status_code=400, detail="Invalid or expired code")
 
-    try:
-        data = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
-        email = data.get("sub")
-        is_admin = bool(data.get("is_admin", False))
-        if not email:
-            raise HTTPException(status_code=401, detail="Invalid refresh token")
-    except JWTError:
+    data = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
+    email = data.get("sub")
+    is_admin = bool(data.get("is_admin", False))
+    if not email:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     access = create_access_token({"sub": email, "is_admin": is_admin})
-    set_auth_cookies(response, access, refresh, partitioned=False)
-
+    # IMPORTANT: cross-site handoff → partitioned cookies
+    set_auth_cookies(response, access, refresh, partitioned=True)
     return {"ok": True}
-
