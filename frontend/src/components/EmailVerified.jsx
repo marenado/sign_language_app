@@ -3,15 +3,14 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
 
-
 const EmailVerified = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading');
 
-
-  const API_BASE = (
-  import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com'
-).replace(/\/$/, '');
+  const API_BASE = (import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com').replace(
+    /\/$/,
+    '',
+  );
 
   useEffect(() => {
     console.log('EmailVerified mounted', API_BASE, window.location.search);

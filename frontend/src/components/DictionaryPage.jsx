@@ -34,27 +34,26 @@ const DictionaryPage = () => {
     }
   };
 
- const fetchDictionaryItems = async (language) => {
-  setLoading(true);
-  try {
-    const { data } = await api.get("/dictionary", { params: { language } });
-    setDictionaryItems(data);
-    setError("");
-  } catch (err) {
-    if (err?.response?.status === 401) {
-      setError("Your session expired. Please log in again.");
-    } else if (err?.response?.status === 404) {
-      // friendly empty-state
-      setDictionaryItems([]);
-      setError("No dictionary entries yet for this language.");
-    } else {
-      setError("Failed to load dictionary. Please try again.");
+  const fetchDictionaryItems = async (language) => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/dictionary', { params: { language } });
+      setDictionaryItems(data);
+      setError('');
+    } catch (err) {
+      if (err?.response?.status === 401) {
+        setError('Your session expired. Please log in again.');
+      } else if (err?.response?.status === 404) {
+        // friendly empty-state
+        setDictionaryItems([]);
+        setError('No dictionary entries yet for this language.');
+      } else {
+        setError('Failed to load dictionary. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   const filteredItems = dictionaryItems.filter((item) => {
     const matchesSearch = searchTerm

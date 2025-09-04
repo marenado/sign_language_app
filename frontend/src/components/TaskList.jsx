@@ -13,7 +13,7 @@ const TaskList = () => {
     'video_recognition',
     'video_to_sign',
     'matching',
-//    'gesture_replication',
+    //    'gesture_replication',
     'sign_speed_challenge',
     'sign_presentation',
   ]);
@@ -1171,6 +1171,91 @@ const TaskList = () => {
     }
   };
 
+  // Pretty-print task.content by task_type
+  const renderContentSummary = (task) => {
+    const c = task?.content || {};
+    switch (task.task_type) {
+      case 'video_to_sign':
+        return (
+          <>
+            <Typography variant="body2">
+              <b>Video ID:</b> {c.video_id ?? '—'}
+            </Typography>
+            <Typography variant="body2">
+              <b>Answer:</b> {task.correct_answer?.option || task.correct_answer || '—'}
+            </Typography>
+          </>
+        );
+
+      case 'video_recognition':
+        return (
+          <>
+            <Typography variant="body2">
+              <b>Video ID:</b> {c.video_id ?? '—'}
+            </Typography>
+            <Typography variant="body2">
+              <b>Options:</b> {(c.options || []).join(', ') || '—'}
+            </Typography>
+            <Typography variant="body2">
+              <b>Correct:</b> {task.correct_answer?.option || '—'}
+            </Typography>
+          </>
+        );
+
+      case 'sign_speed_challenge':
+        return (
+          <>
+            <Typography variant="body2">
+              <b>Video ID:</b> {c.video_id ?? '—'}
+            </Typography>
+            <Typography variant="body2">
+              <b>Options:</b> {(c.options || []).join(', ') || '—'}
+            </Typography>
+            <Typography variant="body2">
+              <b>Time limit:</b> {c.time_limit ?? '—'}s
+            </Typography>
+            <Typography variant="body2">
+              <b>Correct:</b> {task.correct_answer?.option || '—'}
+            </Typography>
+          </>
+        );
+
+      case 'matching':
+        return (
+          <>
+            <Typography variant="body2">
+              <b>Pairs:</b>
+            </Typography>
+            {(c.pairs || []).length ? (
+              (c.pairs || []).map((p, i) => (
+                <Typography key={i} variant="body2" sx={{ ml: 1 }}>
+                  {i + 1}. {p.word || '—'} — {p.video?.gloss || p.video?.id || '—'}
+                </Typography>
+              ))
+            ) : (
+              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'gray' }}>
+                No pairs
+              </Typography>
+            )}
+          </>
+        );
+
+      case 'sign_presentation':
+        return (
+          <Typography variant="body2">
+            <b>Video ID:</b> {c.video_id ?? '—'}
+          </Typography>
+        );
+
+      default:
+        return (
+          <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'gray' }}>
+            No content
+          </Typography>
+        );
+    }
+  };
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f9f9f9' }}>
       <Sidebar />
@@ -1221,26 +1306,9 @@ const TaskList = () => {
                 </Typography>
               )}
 
-              {task.task_type === 'matching' && task.content?.pairs ? (
-                task.content.pairs.length > 0 ? (
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      Matching Pairs:
-                    </Typography>
-                    {task.content.pairs.map((pair, index) => (
-                      <Typography key={index}>
-                        {index + 1}. {pair.word || 'No word'} - {pair.video?.gloss || 'No gloss'}
-                      </Typography>
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'gray' }}>
-                    No matching pairs available.
-                  </Typography>
-                )
-              ) : (
-                <Typography variant="body2">Content: {JSON.stringify(task.content)}</Typography>
-              )}
+              {/* Instead of dumping raw JSON or inline matching logic,
+        just call your pretty-printer helper */}
+              <Box sx={{ mt: 0.5 }}>{renderContentSummary(task)}</Box>
 
               <Box
                 sx={{

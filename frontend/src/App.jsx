@@ -30,7 +30,6 @@ export const AuthContext = createContext({
   logout: () => {},
 });
 
-
 const readIsAdmin = (d) => {
   const v = d?.is_admin ?? d?.isAdmin ?? d?.role;
   if (typeof v === 'boolean') return v;
@@ -43,7 +42,6 @@ const readIsAdmin = (d) => {
   }
   return false;
 };
-
 
 const API_BASE = (import.meta.env?.VITE_API_BASE || 'https://signlearn.onrender.com').replace(
   /\/$/,
@@ -65,16 +63,15 @@ const PostAuth = () => {
     (async () => {
       try {
         const hash = window.location.hash || '';
-        const m = hash.match(/(?:^|#|&)hc=([^&]+)/);   
+        const m = hash.match(/(?:^|#|&)hc=([^&]+)/);
         const hc = m ? decodeURIComponent(m[1]) : null;
 
         if (hc) {
-          await api.post('/auth/handoff', { code: hc }); 
+          await api.post('/auth/handoff', { code: hc });
           // Clean the URL
           window.history.replaceState({}, '', window.location.pathname);
         }
 
-       
         const { data } = await api.get('/auth/me', { headers: { 'x-skip-refresh': '1' } });
         if (!alive) return;
         const isAdmin = readIsAdmin(data);
@@ -92,7 +89,6 @@ const PostAuth = () => {
   return <div>Signing you in…</div>;
 };
 
-
 const Login = ({ onLoggedIn }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -102,12 +98,13 @@ const Login = ({ onLoggedIn }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setMessage('');
-    try { await api.post('/auth/logout'); } catch {}
+    try {
+      await api.post('/auth/logout');
+    } catch {}
 
     try {
       await api.post('/auth/login', { email, password });
       navigate('/post-auth', { replace: true });
-
     } catch (error) {
       console.error('Login error:', error.response?.data?.detail || error.message);
       setMessage('Invalid email or password. Please try again.');
@@ -234,7 +231,11 @@ const App = () => {
           {/* Welcome / login */}
           <Route
             path="/"
-            element={<Login onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })} />}
+            element={
+              <Login
+                onLoggedIn={(isAdmin) => setAuth({ ready: true, authenticated: true, isAdmin })}
+              />
+            }
           />
 
           {/* Public auth pages */}
@@ -324,7 +325,6 @@ const App = () => {
 export default App;
 
 /* Styles omitted for brevity — keep your existing styled-components from your file */
-
 
 /* ——— styles ——— */
 const Container = styled.div`

@@ -155,24 +155,26 @@ const TasksPage = () => {
   };
 
   const handleSubmitMatchingTask = () => {
-  const pairs = task?.content?.pairs;
-  if (!Array.isArray(pairs) || pairs.length === 0) {
-    setFeedback('This task is misconfigured (no pairs).');
-    setShowFeedback(true);
-    setTimeout(() => setShowFeedback(false), 2500);
-    return;
-  }
-  const allMatched = pairs.every(p => videoWordMap[p.video.id]?.word);
-  if (!allMatched) {
-    setFeedback('Please match each video to a word first.');
-    setShowFeedback(true);
-    setTimeout(() => setShowFeedback(false), 2000);
-    return;
-  }
-  const isCorrect = pairs.every(p => videoWordMap[p.video.id]?.word === p.word);
-  showFeedbackThenAdvance(isCorrect, isCorrect ? 'Correct! Well done!' : 'Incorrect! Please review your matches.');
-};
-
+    const pairs = task?.content?.pairs;
+    if (!Array.isArray(pairs) || pairs.length === 0) {
+      setFeedback('This task is misconfigured (no pairs).');
+      setShowFeedback(true);
+      setTimeout(() => setShowFeedback(false), 2500);
+      return;
+    }
+    const allMatched = pairs.every((p) => videoWordMap[p.video.id]?.word);
+    if (!allMatched) {
+      setFeedback('Please match each video to a word first.');
+      setShowFeedback(true);
+      setTimeout(() => setShowFeedback(false), 2000);
+      return;
+    }
+    const isCorrect = pairs.every((p) => videoWordMap[p.video.id]?.word === p.word);
+    showFeedbackThenAdvance(
+      isCorrect,
+      isCorrect ? 'Correct! Well done!' : 'Incorrect! Please review your matches.',
+    );
+  };
 
   const handleSubmitRecognitionTask = () => {
     if (!selectedOption) {
@@ -190,53 +192,48 @@ const TasksPage = () => {
   };
 
   const normalize = (s) =>
-  (s ?? '')
-    .toString()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .trim()
-    .toLowerCase();
+    (s ?? '')
+      .toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .trim()
+      .toLowerCase();
 
-const handleSubmitVideoToSignTask = () => {
-  const input = normalize(userInput);
+  const handleSubmitVideoToSignTask = () => {
+    const input = normalize(userInput);
 
-  // 1) block empty answers
-  if (!input) {
-    setFeedback('Please type your answer.');
-    setShowFeedback(true);
-    setTimeout(() => setShowFeedback(false), 2000);
-    return;
-  }
+    // 1) block empty answers
+    if (!input) {
+      setFeedback('Please type your answer.');
+      setShowFeedback(true);
+      setTimeout(() => setShowFeedback(false), 2000);
+      return;
+    }
 
-  const resolved =
-    task?.videos?.[0]?.gloss ??
-    task?.correct_answer?.option ??
-    task?.content?.answer ??
-    null;
+    const resolved =
+      task?.videos?.[0]?.gloss ?? task?.correct_answer?.option ?? task?.content?.answer ?? null;
 
-  if (!resolved) {
-    // task misconfigured on backend/data
-    setFeedback('This task is misconfigured (missing correct answer).');
-    setShowFeedback(true);
-    setTimeout(() => setShowFeedback(false), 2500);
-    return;
-  }
+    if (!resolved) {
+      // task misconfigured on backend/data
+      setFeedback('This task is misconfigured (missing correct answer).');
+      setShowFeedback(true);
+      setTimeout(() => setShowFeedback(false), 2500);
+      return;
+    }
 
-  // Optional: support multiple accepted answers
-  const accepted = Array.isArray(task?.content?.accepted_answers)
-    ? task.content.accepted_answers
-    : [resolved];
+    // Optional: support multiple accepted answers
+    const accepted = Array.isArray(task?.content?.accepted_answers)
+      ? task.content.accepted_answers
+      : [resolved];
 
-  const isCorrect = accepted.some((a) => normalize(a) === input);
-  const correctForMessage = accepted[0];
+    const isCorrect = accepted.some((a) => normalize(a) === input);
+    const correctForMessage = accepted[0];
 
-  showFeedbackThenAdvance(
-    isCorrect,
-    isCorrect
-      ? 'Correct! Great job!'
-      : `Incorrect! The correct answer is: ${correctForMessage}`
-  );
-};
+    showFeedbackThenAdvance(
+      isCorrect,
+      isCorrect ? 'Correct! Great job!' : `Incorrect! The correct answer is: ${correctForMessage}`,
+    );
+  };
 
   const handleSubmitSpeedChallenge = () => {
     if (!selectedOption) {

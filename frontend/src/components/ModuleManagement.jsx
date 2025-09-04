@@ -290,7 +290,6 @@ const ModuleManagement = () => {
     }
   };
 
-
   const fetchLessons = useCallback(async (moduleId) => {
     if (!moduleId) {
       console.error('Module ID is required to fetch lessons.');
@@ -309,37 +308,29 @@ const ModuleManagement = () => {
         error.response?.data || error.message,
       );
     }
- }, []);
-
+  }, []);
 
   const fetchModules = useCallback(async () => {
-  if (!isAuthenticated || !selectedLanguage) return;
+    if (!isAuthenticated || !selectedLanguage) return;
 
-  try {
-    const { data: modulesData } = await api.get("/admin/modules", {
-      params: { language_id: selectedLanguage },
-    });
-    setModules(modulesData);
+    try {
+      const { data: modulesData } = await api.get('/admin/modules', {
+        params: { language_id: selectedLanguage },
+      });
+      setModules(modulesData);
 
-    await Promise.all(
-      modulesData.map((m) =>
-        fetchLessons(m.module_id).catch(() => {})
-      )
-    );
-  } catch (err) {
-    const status = err?.response?.status;
+      await Promise.all(modulesData.map((m) => fetchLessons(m.module_id).catch(() => {})));
+    } catch (err) {
+      const status = err?.response?.status;
 
-    if (status === 401) {
-      setIsAuthenticated(false);
-      return;
+      if (status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+
+      console.error('Error fetching modules:', err.response?.data || err.message);
     }
-
-    console.error("Error fetching modules:", err.response?.data || err.message);
-  }
-}, [isAuthenticated, selectedLanguage, fetchLessons]);
-
-
-  
+  }, [isAuthenticated, selectedLanguage, fetchLessons]);
 
   const fetchTasks = async (lessonId) => {
     try {
