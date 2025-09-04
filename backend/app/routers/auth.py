@@ -176,12 +176,12 @@ async def facebook_login(request: Request):
 @router.get("/facebook/callback")
 async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        qp = dict(request.query_params)
-        if "error" in qp:
-            logging.warning(f"Facebook OAuth error: {qp.get('error')}: "
-                            f"{qp.get('error_description') or qp.get('error_message')}")
+        qp = request.query_params  
+        if any(k in qp for k in ("error", "error_code", "error_reason", "error_description", "error_message")):
+            reason = qp.get("error_description") or qp.get("error_message") or qp.get("error_reason") or qp.get("error")
+            logging.warning(f"Facebook OAuth error: {dict(qp)} | reason={reason!r}")
             return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
-
+      
         token = await oauth.facebook.authorize_access_token(request)
         access_token_fb = token["access_token"]
 
@@ -194,32 +194,38 @@ async def facebook_callback(request: Request, db: AsyncSession = Depends(get_db)
         name = user_info.get("name")
 
         if not email:
-            raise HTTPException(status_code=400, detail="Facebook did not return an email address")
+            logging.warning("Facebook login: no email returned in /me response")
+            return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
 
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user:
-            user = User(email=email, username=name or email.split("@")[0], password="", is_verified=True)
+            user = User(
+                email=email,
+                username=name or email.split("@")[0],
+                password="",
+                is_verified=True,
+            )
             db.add(user)
             await db.commit()
             await db.refresh(user)
 
         is_admin = bool(getattr(user, "is_admin", False) or getattr(user, "is_super_admin", False))
 
-        access_token = create_access_token({"sub": email, "is_admin": is_admin})
         refresh_token = create_refresh_token({"sub": email, "is_admin": is_admin})
-
-       
-        dest = f"{FRONTEND_URL.rstrip('/')}/post-auth#rt={quote(refresh_token)}"
-        return RedirectResponse(url=dest, status_code=302)
+        return RedirectResponse(
+            url=f"{FRONTEND_URL.rstrip('/')}/post-auth#rt={quote(refresh_token)}",
+            status_code=302,
+        )
 
     except HTTPException:
         raise
     except Exception:
         logging.exception("Unexpected error in Facebook callback")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        return RedirectResponse(url=f"{FRONTEND_URL.rstrip('/')}/", status_code=302)
     finally:
         await db.close()
+
 
 
 
