@@ -8,7 +8,7 @@ const COLORS = ['#007bff', '#28a745', '#ff7f0e', '#17a2b8'];
 const TasksPage = () => {
   const { lessonId, taskId } = useParams();
   const navigate = useNavigate();
-
+  const DEMO_MODE = true;
   const [task, setTask] = useState(null);
   const [taskIds, setTaskIds] = useState([]);
   const [videoUrl, setVideoUrl] = useState('');
@@ -108,18 +108,23 @@ const TasksPage = () => {
   };
 
   const markLessonComplete = async () => {
-    try {
-      await api.post(`/users/lessons/${lessonId}/complete`, {});
-      navigate('/modules');
-    } catch (err) {
-      console.error('Error marking lesson as complete:', err);
-      setError(
-        err?.response?.status === 400
-          ? "You haven't scored enough points to complete this lesson."
-          : 'Failed to mark the lesson as complete. Please try again.',
-      );
+  try {
+    await api.post(`/users/lessons/${lessonId}/complete`, {});
+    navigate('/modules');
+  } catch (err) {
+    if (DEMO_MODE && (err?.response?.status === 400)) {
+      navigate('/modules?demo=1'); 
+      return;
     }
-  };
+    console.error('Error marking lesson as complete:', err);
+    setError(
+      err?.response?.status === 400
+        ? "You haven't scored enough points to complete this lesson."
+        : 'Failed to mark the lesson as complete. Please try again.',
+    );
+  }
+};
+
 
   const handleNextTask = () => {
     const numericId = Number(taskId);
