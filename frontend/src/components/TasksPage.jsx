@@ -21,6 +21,25 @@ const TasksPage = () => {
   const [error, setError] = useState('');
   const [showFeedback, setShowFeedback] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+const [lastAwardedTaskId, setLastAwardedTaskId] = useState(null);
+
+const awardPoints = async (points) => {
+  if (!lessonId || !taskId) return;
+  if (lastAwardedTaskId === Number(taskId)) return;
+
+  try {
+    setSubmitting(true);
+    await api.post(`/users/lessons/${lessonId}/tasks/${taskId}/complete`, {
+      points_earned: Number(points) || 0,
+    });
+    setLastAwardedTaskId(Number(taskId));
+  } catch (e) {
+    console.error('Failed to award points:', e);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const [timeLeft, setTimeLeft] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -112,8 +131,9 @@ const TasksPage = () => {
     await api.post(`/users/lessons/${lessonId}/complete`, {});
     navigate('/modules');
   } catch (err) {
-    if (DEMO_MODE && (err?.response?.status === 400)) {
-      navigate('/modules?demo=1'); 
+    if (DEMO_MODE && err?.response?.status === 400) {
+      // demo bypass: still navigate so you can show progress screen
+      navigate('/modules?demo=1');
       return;
     }
     console.error('Error marking lesson as complete:', err);
@@ -124,6 +144,7 @@ const TasksPage = () => {
     );
   }
 };
+
 
 
   const handleNextTask = () => {
@@ -181,20 +202,23 @@ const TasksPage = () => {
     );
   };
 
-  const handleSubmitRecognitionTask = () => {
-    if (!selectedOption) {
-      setFeedback('Please select an option.');
-      setShowFeedback(true);
-      setTimeout(() => setShowFeedback(false), 2000);
-      return;
-    }
-    const correct = task?.correct_answer?.option || 'Unknown';
-    const isCorrect = selectedOption === correct;
-    showFeedbackThenAdvance(
-      isCorrect,
-      isCorrect ? 'Correct! Well done!' : `Incorrect! The correct answer is: ${correct}`,
-    );
-  };
+  const handleSubmitRecognitionTask = async () => {
+  if (!selectedOption) {
+    setFeedback('Please select an option.');
+    setShowFeedback(true);
+    setTimeout(() => setShowFeedback(false), 2000);
+    return;
+  }
+  const correct = task?.correct_answer?.option || 'Unknown';
+  const isCorrect = selectedOption === correct;
+
+  if (isCorrect) await awardPoints(task?.points ?? 1);
+  showFeedbackThenAdvance(
+    isCorrect,
+    isCorrect ? 'Correct! Well done!' : `Incorrect! The correct answer is: ${correct}`,
+  );
+};
+
 
   const normalize = (s) =>
     (s ?? '')
