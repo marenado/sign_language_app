@@ -203,15 +203,61 @@ const ModuleManagement = () => {
   };
 
   const handleDeleteModule = async () => {
-    if (!moduleToDelete) return;
-    try {
-      await api.delete(`/admin/modules/${moduleToDelete.module_id}`);
-      await fetchModules();
-      closeDeleteDialog();
-    } catch (error) {
-      console.error('Error deleting module:', error.response?.data || error.message);
+  if (!moduleToDelete) return;
+
+  const moduleId = moduleToDelete.module_id;
+
+  try {
+    // 1) get lessons in this module
+    const { data: lessonsInModule } = await api.get('/admin/lessons', {
+      params: { module_id: moduleId },
+    });
+
+    // 2) for each lesson: delete its tasks, then the lesson
+    for (const lesson of lessonsInModule || []) {
+      try {
+        // fetch tasks for this lesson
+        const { data: lessonTasks } = await api.get('/admin/tasks', {
+          params: { lesson_id: lesson.lesson_id },
+        });
+
+        // delete tasks (sequential to be safe)
+        for (const t of lessonTasks || []) {
+          try {
+            await api.delete(`/admin/tasks/${t.task_id}`);
+          } catch (e) {
+            console.error(`Failed to delete task ${t.task_id}`, e.response?.data || e.message);
+          }
+        }
+
+        // delete the lesson itself
+        try {
+          await api.delete(`/admin/lessons/${lesson.lesson_id}`);
+        } catch (e) {
+          console.error(`Failed to delete lesson ${lesson.lesson_id}`, e.response?.data || e.message);
+        }
+      } catch (e) {
+        console.error(`Failed to fetch tasks for lesson ${lesson.lesson_id}`, e.response?.data || e.message);
+      }
     }
-  };
+
+    // 3) delete the module
+    await api.delete(`/admin/modules/${moduleId}`);
+
+    // 4) update UI
+    setModules((prev) => prev.filter((m) => m.module_id !== moduleId));
+    setLessons((prev) => {
+      const copy = { ...prev };
+      delete copy[moduleId];
+      return copy;
+    });
+
+    closeDeleteDialog();
+  } catch (error) {
+    console.error('Error deleting module:', error.response?.data || error.message);
+  }
+};
+
 
   const openLessonModal = (module) => {
     setSelectedModule(module);
