@@ -180,7 +180,7 @@ const awardPoints = async (points) => {
     setSelectedVideo(null);
   };
 
-  const handleSubmitMatchingTask = () => {
+  const handleSubmitMatchingTask = async () => {
     const pairs = task?.content?.pairs;
     if (!Array.isArray(pairs) || pairs.length === 0) {
       setFeedback('This task is misconfigured (no pairs).');
@@ -196,6 +196,7 @@ const awardPoints = async (points) => {
       return;
     }
     const isCorrect = pairs.every((p) => videoWordMap[p.video.id]?.word === p.word);
+    if (isCorrect) await awardPoints(task?.points ?? 1); 
     showFeedbackThenAdvance(
       isCorrect,
       isCorrect ? 'Correct! Well done!' : 'Incorrect! Please review your matches.',
@@ -228,7 +229,7 @@ const awardPoints = async (points) => {
       .trim()
       .toLowerCase();
 
-  const handleSubmitVideoToSignTask = () => {
+  const handleSubmitVideoToSignTask = async () => {
     const input = normalize(userInput);
 
     // 1) block empty answers
@@ -256,6 +257,7 @@ const awardPoints = async (points) => {
       : [resolved];
 
     const isCorrect = accepted.some((a) => normalize(a) === input);
+    if (isCorrect) await awardPoints(task?.points ?? 1); 
     const correctForMessage = accepted[0];
 
     showFeedbackThenAdvance(
@@ -264,7 +266,7 @@ const awardPoints = async (points) => {
     );
   };
 
-  const handleSubmitSpeedChallenge = () => {
+  const handleSubmitSpeedChallenge = async () => {
     if (!selectedOption) {
       setFeedback('Please select an option.');
       setShowFeedback(true);
@@ -273,6 +275,7 @@ const awardPoints = async (points) => {
     }
     const correct = task?.correct_answer?.option || 'Unknown';
     const isCorrect = selectedOption === correct;
+    if (isCorrect) await awardPoints(task?.points ?? 1); 
     setIsTimerRunning(false);
     showFeedbackThenAdvance(
       isCorrect,
@@ -281,7 +284,8 @@ const awardPoints = async (points) => {
   };
 
   if (isLoading) return <LoadingContainer>Loading...</LoadingContainer>;
-  if (error) return <ErrorContainer>{error}</ErrorContainer>;
+  if (error && !DEMO_MODE) return <ErrorContainer>{error}</ErrorContainer>;
+
 
   return (
     <PageContainer>
